@@ -3,10 +3,30 @@ import argparse, os, sys
 from glob import glob
 from copy import deepcopy
 
-ndim=2
-hcutoff=6.25
-temp=300
-kb=0.00831
+def parse():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-c", "--colvarfile", \
+                        help="COLVAR file for analysis", \
+                        type=str, required=True)
+    parser.add_argument("-h","--hillsfile", \
+                        help="HILLS file for metadynamics analysis (units kJ/mol).", \
+                        type=str,required=False)
+    parser.add_argument("-ndim", "--ndim", help="Number of collective variables. No default", \
+                        type=int, required=True)
+    parser.add_argument("-temp", "--temp", help="Temperature. No default", \
+                        type=int, required=True)
+
+
+# parameters
+hcutoff=6.25 # cutoff for Gaussians
+kb=0.00831446261815324
+
+
+# Variables
+ndim = args.ndim
+temp = args.temp
+hfile = args.hillsfile
+cfile = args.colvarfile
 
 #with open("calcf_output1.dat" , 'w') as f:
 #    f.write("# Time, grad,Gaussenergy \n")
@@ -27,7 +47,7 @@ with open("grad_binned.dat" , 'w') as f:
 # read hills file header to find active CVs
 
 count=0
-f=open ("HILLS0", 'r')
+f=open (hfile, 'r')
 for line in f:
    count=count+1
    if count==1:    
@@ -43,7 +63,7 @@ iactive[a_cvs[:]]=1
 
 # read the hills file (for now read just one colvars and one hills file)
 
-hillsarray = np.loadtxt("HILLS0")
+hillsarray = np.loadtxt(hfile)
 
 nhills=len(hillsarray)
 
@@ -59,7 +79,7 @@ deltahills[:,a_cvs[0:nactive]]=tmp_deltahills[:,0:nactive]
 
 # read the colvar file
 
-colvarsarray = np.loadtxt("COLVAR0")
+colvarsarray = np.loadtxt(cfile)
 
 # now read the header of grid file
 header=np.zeros((ndim,4))
