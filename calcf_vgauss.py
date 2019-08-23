@@ -289,9 +289,9 @@ for i in range(0,neffpoints):
      diffc[i,:]=diffc[i,:]-np.rint(diffc[i,:])*periodic[0:ndim]
      diffc[i,:]=diffc[i,:]*box[0:ndim]
      colvarbin=0.5*width+width*np.floor(diffc[i,:]/width)+colvarseff[0,:]
-     colvarbin=colvarbin/box[0:ndim]
+     colvarbin=(colvarbin-(lowbound+0.5*box))/box[0:ndim]
      colvarbin=colvarbin-np.rint(colvarbin)*periodic[0:ndim]
-     colvarbin=colvarbin*box[0:ndim]
+     colvarbin=colvarbin*box[0:ndim]+(lowbound+0.5*box)
      diffc[0:nbins,:]=colvarsbineff[0:nbins,:]-colvarbin[:]
      diffc[0:nbins,:]=diffc[0:nbins,:]/box[0:ndim]
      diffc[0:nbins,:]=diffc[0:nbins,:]-np.rint(diffc[0:nbins,:])*periodic[0:ndim]
