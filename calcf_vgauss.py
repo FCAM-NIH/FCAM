@@ -612,7 +612,9 @@ if read_efile:
   nepoints=len(colvareffarray)
   colvarseff=np.zeros((nepoints,ndim))
   neffpoints=1
-  colvarseff,neffpoints=calc_eff_points(nepoints, colvareffarray[:,1:ndim+1]) 
+  arrayin=np.zeros((nepoints,ndim))
+  arrayin[0:nepoints,0:ndim]=colvareffarray[0:nepoints:,1:ndim+1]
+  colvarseff,neffpoints=calc_eff_points(nepoints, arrayin) 
 
 # CALC FORCE ON EFFECTIVE POINTS
 
