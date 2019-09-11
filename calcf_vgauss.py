@@ -233,6 +233,7 @@ for line in f:
         read_efile=False
         do_hills_bias=False 
         calc_force_eff=False
+        calc_epoints=False 
       if nffiles>0:
         ffile.append(str(parts[1]))
       nffiles=nffiles+1
@@ -446,7 +447,8 @@ def bin_data(numepoints, effparray, weights, gradarray):
    gradbin=np.zeros((numepoints,ndim))
    weightbin=np.zeros((numepoints))
    numinbin=np.zeros((numepoints),dtype=np.int32)
-   indexmax=np.argmax(weights)
+   #indexmax=np.argmax(weights)
+   indexmax=0
    colvarsbineff[0,:]=effparray[indexmax,:]
    for i in range(0,numepoints):
       diffc[i,:]=effparray[i,:]-effparray[indexmax,:]
@@ -600,7 +602,7 @@ if calc_epoints:
  
 if read_efile:
   print ("Reading effective points from external file...")
-  for n in range(1,nefiles):
+  for n in range(0,nefiles):
      try:
          tryarray = np.loadtxt(efile[n])
          if n==0:
@@ -651,7 +653,7 @@ if read_ffile:
     print ("Reading forces arising from multiple simulations.")
     print ("Note that each file must correspond to forces calculated on the same points,")
     print ("thereby the files must have the same length.")
-  for n in range(1,nffiles):
+  for n in range(0,nffiles):
      try:
          tryarray = np.loadtxt(ffile[n])
          if n==0:
@@ -660,7 +662,9 @@ if read_ffile:
            weightr=tryarray[:,2*ndim+1]
            neffpoints=len(colvarseff)
            weighttot=weightr
-           grad=gradr
+           grad=np.zeros((neffpoints,ndim)) 
+           for j in range(0,ndim):
+              grad[0:neffpoints,j]=grad[0:neffpoints,j]+gradr[0:neffpoints,j]*weightr[0:neffpoints]
          else:
            if len(tryarray)!=neffpoints:
              print ("Error, please provide files with the same lenght")
