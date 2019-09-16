@@ -34,6 +34,9 @@ def parse():
     parser.add_argument("-jcmetab","--justcalcmetabias", \
                         help="Calculate metadynamics bias potential and do nothing else. COLVARS, HILLS and GRID data must at least be provided", \
                         default=False, dest='do_jmetab', action='store_true')
+    parser.add_argument("-hlfl","--hillfreqlarge", \
+                        help="Metadynamics in which HILLS are stored more frequently than COLVARS", \
+                        default=False, dest='do_hlfl', action='store_true')
 
     if len(sys.argv) == 1:
         parser.print_help()
@@ -59,6 +62,7 @@ eff_points_file=args.outeffpointsfile
 force_points_file=args.outeffforcefile
 force_bin_file=args.outbinforcefile
 temp=args.temp
+do_large_hfreq=args.do_hlfl
 
 calc_epoints=True # True unless is read from input
 calc_force_eff=True # True unless is read from input
@@ -316,7 +320,7 @@ if len(cunique)!=len(cfile):
   print ("Error: same COLVAR file introduced multiple times in the input")
   sys.exit()
 
-if len(hunique)!=len(hfile):
+if len(hunique)!=len(hfile) and hunique[0]!="none":
   print ("Error: same HILLS file introduced multiple times in the input")
   sys.exit()
 
@@ -445,17 +449,19 @@ def bin_data(numepoints, effparray, weights, gradarray):
    diffc=np.zeros((numepoints,ndim)) 
    distance=np.zeros((numepoints))
    gradbin=np.zeros((numepoints,ndim))
+   diffbin=np.zeros(ndim)
+   colvarbin=np.zeros(ndim)
    weightbin=np.zeros((numepoints))
    numinbin=np.zeros((numepoints),dtype=np.int32)
    #indexmax=np.argmax(weights)
    indexmax=0
    colvarsbineff[0,:]=effparray[indexmax,:]
    for i in range(0,numepoints):
-      diffc[i,:]=effparray[i,:]-effparray[indexmax,:]
+      diffc[i,:]=effparray[i,:]-(effparray[indexmax,:]-0.5*width)
       diffc[i,:]=diffc[i,:]/box[0:ndim]
       diffc[i,:]=diffc[i,:]-np.rint(diffc[i,:])*periodic[0:ndim]
       diffc[i,:]=diffc[i,:]*box[0:ndim]
-      colvarbin=0.5*width+width*np.floor(diffc[i,:]/width)+effparray[indexmax,:]
+      colvarbin=width*np.floor(diffc[i,:]/width)+effparray[indexmax,:]
       colvarbin=(colvarbin-(lowbound+0.5*box))/box[0:ndim]
       colvarbin=colvarbin-np.rint(colvarbin)*periodic[0:ndim]
       colvarbin=colvarbin*box[0:ndim]+(lowbound+0.5*box)
@@ -492,13 +498,19 @@ if do_hills_bias:
      index=0
      dvec=np.arange(nhills[k])
      if nactive[k]>0:
-       countinter=0 
+       countinter=0
+       numhills=0 
        for i in range(0,npoints[k]):
           gaussenergy=0
           whichhills_old=whichhills
           if i>0 and colvarsarray[k][i,0]<colvarsarray[k][i-1,0]:
-            index=trh
-            whichhills_old=np.where(dvec<trh,1,0) 
+            if hillsarray[k][numhills-1,0]>hillsarray[k][numhills,0]: 
+              index=trh
+              whichhills_old=np.where(dvec<trh,1,0)
+          if do_large_hfreq:
+            if numhills>=trh:
+              index=trh
+              whichhills_old=np.where(dvec<trh,1,0)
           trh=1+index+np.array(np.where(hillsarray[k][index+1:nhills[k],0]-hillsarray[k][index:nhills[k]-1,0]<0))
           if trh.size!=0:
             trh=np.amin(2+index+np.array(np.where(hillsarray[k][index+2:nhills[k],0]-hillsarray[k][index+1:nhills[k]-1,0]<0)))
@@ -532,15 +544,16 @@ if do_hills_bias:
               f.write("%s " % index)
               f.write("%s \n" % (k))
      else:
-       with open(bias_grad_file, 'a') as f:
-           f.write("%s " % (colvarsarray[k][i,0]))
-           for j in range(0,ndim):
-              f.write("%s " % (gradv[k][i,j]))
-           f.write("%s " % " 0 ")
-           f.write("%s " % " 0 " )
-           f.write("%s " % " 0 ")
-           f.write("%s " % " 0 ")
-           f.write("%s \n" % (k))
+       for i in range(0,npoints[k]):
+          with open(bias_grad_file, 'a') as f:
+              f.write("%s " % (colvarsarray[k][i,0]))
+              for j in range(0,ndim):
+                 f.write("%s " % (gradv[k][i,j]))
+              f.write("%s " % " 0 ")
+              f.write("%s " % " 0 " )
+              f.write("%s " % " 0 ")
+              f.write("%s " % " 0 ")
+              f.write("%s \n" % (k))
 
 # READ EXTERNAL FILE WITH GRADIENTS
        
@@ -588,11 +601,13 @@ if calc_epoints:
 
   # recalculate effective points
   nepoints=len(colvareffarray)
-  colvarseff=np.zeros((nepoints,ndim)) 
+  colvarseff=np.zeros((nepoints,ndim))
+  if ncolvars==1:
+    neffpoints=nepoints
+    colvarseff=colvareffarray 
   if ncolvars>1:  
     neffpoints=1
     colvarseff,neffpoints=calc_eff_points(nepoints, colvareffarray)
-
   for i in range (0,neffpoints):
      with open(eff_points_file, 'a') as f:
          f.write("%s " % (i))
