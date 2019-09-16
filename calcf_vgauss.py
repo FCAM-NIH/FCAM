@@ -688,7 +688,9 @@ if read_ffile:
            if distance>1:
              print ("Error, points where forces have been calculated are different")
              sys.exit()
+           weightr=tryarray[:,2*ndim+1]
            weighttot=weighttot+weightr 
+           gradr=tryarray[:,ndim+1:2*ndim+1]
            for j in range(0,ndim):
               grad[0:neffpoints,j]=grad[0:neffpoints,j]+gradr[0:neffpoints,j]*weightr[0:neffpoints]
      except IOError:
