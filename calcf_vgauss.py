@@ -52,6 +52,7 @@ args = parse()
 
 # parameters
 hcutoff=6.25 # cutoff for Gaussians
+wcutoff=6.25 # cutoff for Gaussians in weight calculation
 kb=0.00831446261815324
 
 # Variables
@@ -189,7 +190,7 @@ for line in f:
         whichcv=[int(parts[1])-1]
         lowbound=[float(parts[2])]
         upbound=[float(parts[3])]
-        if float(parts[1])>=float(parts[3]):
+        if float(parts[2])>=float(parts[3]):
           print ("Error: lower boundary must be smaller than upper boudary ") 
           sys.exit() 
         npointsv=[int(parts[4])]
@@ -424,7 +425,7 @@ def calc_vhar_force(numepoints, numpoints, effparray, colvars, gradbias):
       diffc=diffc*box[0:ndim]
       diffc=2.0*diffc/width[0:ndim]
       distance=0.5*np.sum(diffc[0:numpoints,:]*diffc[0:numpoints,:],axis=1)
-      whichpoints=np.where(distance<hcutoff) 
+      whichpoints=np.where(distance<wcutoff) 
       whichpoints=np.array(whichpoints)
       whichpoints=np.ndarray.flatten(whichpoints) 
       weight=np.exp(-distance[whichpoints[:]])
@@ -435,7 +436,7 @@ def calc_vhar_force(numepoints, numpoints, effparray, colvars, gradbias):
              tweights[i]=np.sum(weight) 
    return grade,tweights
 
-# ROUTINE TO BIN THE DATA STARTING FROM POINT WITH LARGEST WEIGHT
+# ROUTINE TO BIN THE DATA STARTING FROM FIRST POINT
 
 def bin_data(numepoints, effparray, weights, gradarray):
    colvarsbineff=np.zeros((numepoints, ndim))
