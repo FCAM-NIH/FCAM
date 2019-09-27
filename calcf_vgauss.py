@@ -12,6 +12,12 @@ def parse():
                         type=str, required=True)
     parser.add_argument("-temp", "--temp", help="Temperature (in Kelvin) for calculating the force constant (k) according to half bin width (k=4*kb*temp/(width*width)) ", \
                         default=-1.0,type=float, required=False)
+    parser.add_argument("-kb", "--kb", help="Boltzmann factor for calculating the force constant (k) and defining free energy units. Default is 0.00831... kJ/mol", \
+                        default=0.00831446261815324,type=float, required=False)
+    parser.add_argument("-colgener", "--colgener", help="Column to read the Gaussian energy in the COLVAR file for filtering (Default is the second last)", \
+                        default=-1,type=int, required=False)
+    parser.add_argument("-valgefilt", "--valgefilt", help="Difference threshold between calculated gaussian energy and the one reported in the COLVAR file for filtering ", \
+                        default=1000.0,type=float, required=False)
     parser.add_argument("-nometaf","--nocalcmetabiasforce", \
                         help="Do not calculate bias forces of metadynamics Gaussian hills. By default metadynamics bias calculation is ON", \
                         default=True, dest='do_hbias', action='store_false')
@@ -24,6 +30,9 @@ def parse():
     parser.add_argument("-oeff", "--outeffforcefile", \
                         help="output file effective points and forces", \
                         default="force_on_eff_points.out",type=str, required=False)
+    parser.add_argument("-ocmbeff", "--outcombeffforcefile", \
+                        help="output combined file effective points and forces", \
+                        default="force_on_eff_points_comb.out",type=str, required=False)
     parser.add_argument("-obff", "--outbinforcefile", \
                         help="output file of binned colvar and forces", \
                         default="force_on_bin_points.out",type=str, required=False)
@@ -33,9 +42,15 @@ def parse():
     parser.add_argument("-nobound","--noboundaries", \
                         help="Do not exclude data beyond grid boundaries", \
                         default=True, dest='do_bound', action='store_false')
+    parser.add_argument("-gefilt","--gaussianenergyfilter", \
+                        help="Filter data by comparing the calculated gaussian energy with the one reported in the COLVAR file according to -valgefilt", \
+                        default=False, dest='do_gefilt', action='store_true')
     parser.add_argument("-nofeffpc","--nofasteffpointcalc", \
-                        help="Do not use algorithm for fast calculation of effective points", \
+                        help="Do not use algorithm for fast calculation of effective points (through binning)", \
                         default=True, dest='do_feffpc', action='store_false')
+    parser.add_argument("-noeffpb","--noeffpointbin", \
+                        help="Do not calculate effective points by binning but use non-overlapping spherical domains", \
+                        default=True, dest='do_effpb', action='store_false')
     parser.add_argument("-nofbind","--nofastbindata", \
                         help="Do not use algorithm for fast data binning", \
                         default=True, dest='do_fbind', action='store_false')
@@ -59,22 +74,27 @@ args = parse()
 # parameters
 hcutoff=6.25 # cutoff for Gaussians
 wcutoff=6.25 # cutoff for Gaussians in weight calculation
-kb=0.00831446261815324
 
 # Variables
 ifile=args.inputfile
 do_hills_bias=args.do_hbias
 do_bin_data=args.do_bdat
 do_boundaries=args.do_bound
+do_gefilter=args.do_gefilt
 do_just_eff_points=args.do_jceffp
 do_just_hills_bias=args.do_jmetab
 do_fast_eff_p_calc=args.do_feffpc
+do_bin_eff_p_calc=args.do_effpb
 do_fast_bin_data=args.do_fbind
 bias_grad_file=args.outbiasgradfile
 eff_points_file=args.outeffpointsfile
 force_points_file=args.outeffforcefile
+force_points_file_comb=args.outcombeffforcefile
 force_bin_file=args.outbinforcefile
 temp=args.temp
+kb=args.kb
+tgefilt=args.valgefilt
+colgener=args.colgener
 do_large_hfreq=args.do_hlfl
 
 calc_epoints=True # True unless is read from input
@@ -109,7 +129,7 @@ for line in f:
          has_c=True
          ncfiles=ncfiles+1
     if ncfiles>1:
-      print ("Error, COLVAR_FILE must be specidied just one time on a single line") 
+      print ("ERROR, COLVAR_FILE must be specidied just one time on a single line") 
       sys.exit()
     if has_c:
       if ncolvars==0:
@@ -121,7 +141,7 @@ for line in f:
              has_h=True 
              nhfiles=nhfiles+1
         if nhfiles>1:
-          print ("Error, HILLS_FILE must be specidied just one time on a single line")
+          print ("ERROR, HILLS_FILE must be specidied just one time on a single line")
           sys.exit()
         if has_h:
           has_hills=[True]
@@ -134,14 +154,14 @@ for line in f:
                has_a=True
                nafields=nafields+1
           if has_a==False or nafields>1:
-            print ("Error, HILLS_CVS not specified or specidied more than once on a single line")
+            print ("ERROR, HILLS_CVS not specified or specidied more than once on a single line")
             sys.exit()
           for i in range (la+1,nparts):
              if str(parts[i])=="COLVAR_FILE" or str(parts[i])=="HILLS_FILE":
                break  
              nact=nact+1
           nactive=[nact]
-          pippo=np.zeros((nactive[ncolvars]),dtype=np.int32)
+          pippo=np.zeros((nactive[ncolvars]),dtype=np.int64)
           npippo=0
           for i in range(la+1,nparts):
              if str(parts[i])=="COLVAR_FILE" or str(parts[i])=="HILLS_FILE":
@@ -163,7 +183,7 @@ for line in f:
              has_h=True
              nhfiles=nhfiles+1
         if nhfiles>1:
-          print ("Error, HILLS_FILE must be specidied just one time on a single line")
+          print ("ERROR, HILLS_FILE must be specidied just one time on a single line")
           sys.exit()
         if has_h:
           has_hills.append(True)
@@ -176,14 +196,14 @@ for line in f:
                has_a=True
                nafields=nafields+1
           if has_a==False or nafields>1:
-            print ("Error, HILLS_CVS not specified or specidied more than once on a single line")
+            print ("ERROR, HILLS_CVS not specified or specidied more than once on a single line")
             sys.exit()
           for i in range (la+1,nparts):
              if str(parts[i])=="COLVAR_FILE" or str(parts[i])=="HILLS_FILE":
                break 
              nact=nact+1
           nactive.append(nact)
-          pippo=np.zeros((nactive[ncolvars]),dtype=np.int32)
+          pippo=np.zeros((nactive[ncolvars]),dtype=np.int64)
           npippo=0
           for i in range(la+1,nparts):
              if str(parts[i])=="COLVAR_FILE" or str(parts[i])=="HILLS_FILE":
@@ -203,7 +223,7 @@ for line in f:
         lowbound=[float(parts[2])]
         upbound=[float(parts[3])]
         if float(parts[2])>=float(parts[3]):
-          print ("Error: lower boundary must be smaller than upper boudary ") 
+          print ("ERROR: lower boundary must be smaller than upper boudary ") 
           sys.exit() 
         npointsv=[int(parts[4])]
         if len(parts)>5:
@@ -219,7 +239,7 @@ for line in f:
         lowbound.append(float(parts[2]))
         upbound.append(float(parts[3]))
         if float(parts[2])>=float(parts[3]):
-          print ("Error: lower boundary must be smaller than upper boudary ")
+          print ("ERROR: lower boundary must be smaller than upper boudary ")
           sys.exit()
         npointsv.append(int(parts[4]))
         if len(parts)>5: 
@@ -283,17 +303,17 @@ if ncolvars==0:
   calc_force_eff=False
 
 if ndim==0:
-  print ("Error: number of variables is zero, please provide some to continue")
+  print ("ERROR: number of variables is zero, please provide some to continue")
   sys.exit()
        
 if calc_force_eff and temp<0:
-  print ("Error: temperature for calculating forces not provided or negative value")
+  print ("ERROR: temperature for calculating forces not provided or negative value")
   sys.exit()
  
 if read_gfile:
   if ngfiles!=1:
     if ngfiles!=ncolvars:
-      print ("Error: please provide a unique gradient file")
+      print ("ERROR: please provide a unique gradient file")
       print ("or a gradient file for each colvar.")
       print ("Note that in either case this must be consistent with the ORDERED set of colvar files provided.")
       sys.exit()
@@ -306,10 +326,6 @@ if calc_epoints:
   with open(eff_points_file, 'w') as f:
       f.write("# numeff, colvar, rep \n")
 
-if calc_force_eff:
-  with open(force_points_file, 'w') as f:
-      f.write("# numeff, colvar, gradient \n")
-
 has_hills=np.array(has_hills)
 nactive=np.array(nactive)
 upbound=np.array(upbound)
@@ -318,6 +334,24 @@ npointsv=np.array(npointsv)
 periodic=np.array(periodic,dtype=np.int8)
 box=upbound-lowbound
 width=box/npointsv
+
+if calc_force_eff:
+  with open(force_points_file, 'w') as f:
+      f.write("# %s \n" % ndim)
+      for j in range (0,ndim):
+         f.write("# %s " % lowbound[j])
+         f.write("  %s  " % (width[j]/2.0))
+         f.write("  %s  " % (2*npointsv[j]))
+         f.write("  %s  \n" % periodic[j])
+
+if read_ffile:
+  with open(force_points_file_comb, 'w') as f:
+      f.write("# %s \n" % ndim)
+      for j in range (0,ndim):
+         f.write("# %s " % lowbound[j])
+         f.write("  %s  " % (width[j]/2.0))
+         f.write("  %s  " % (2*npointsv[j]))
+         f.write("  %s  \n" % periodic[j])
 
 if do_bin_data:
   with open(force_bin_file, 'w') as f:
@@ -333,15 +367,15 @@ hunique=np.unique(hfile)
 vunique=np.unique(whichcv)
 
 if len(cunique)!=len(cfile) and cunique[0]!="none":
-  print ("Error: same COLVAR file introduced multiple times in the input")
+  print ("ERROR: same COLVAR file introduced multiple times in the input")
   sys.exit()
 
 if len(hunique)!=len(hfile) and hunique[0]!="none":
-  print ("Error: same HILLS file introduced multiple times in the input")
+  print ("ERROR: same HILLS file introduced multiple times in the input")
   sys.exit()
 
 if len(vunique)!=len(whichcv):
-  print ("Error: same CV introduced multiple times in the input")
+  print ("ERROR: same CV introduced multiple times in the input")
   sys.exit()
 
 iactive=np.zeros((ncolvars,ndim),dtype=np.int8)
@@ -350,7 +384,7 @@ iactive[:,:]=-1
 allfound=True
 for i in range (0,ncolvars):
    if nactive[i]>ndim:
-     print ("Error: number of HILLS_CVS larger than total number of CVS")
+     print ("ERROR: number of HILLS_CVS larger than total number of CVS")
      sys.exit() 
    for j in range (0,nactive[i]):
       if nactive[i]>0: 
@@ -364,7 +398,7 @@ for i in range (0,ncolvars):
             allfound=False 
 
 if allfound==False:
-  print ("Error: HILLS_CVS must be part of the CVS used for CV")
+  print ("ERROR: HILLS_CVS must be part of the CVS used for CV")
   sys.exit()
 
 # read the hills files
@@ -401,14 +435,29 @@ for i in range (0,ncolvars):
      npoints.append(len(colvarsarray[i]))
      gradv.append(np.zeros((npoints[i],ndim)))
 
+if do_gefilter:
+  for i in range (0,ncolvars):
+     if i==0:
+       if colgener<0:
+         colgenerread=[np.ma.size(colvarsarray[i],axis=1)-2]
+       else:
+         colgenerread=[colgener-1]  
+     else:
+       if colgener<0:
+         colgenerread.append(np.ma.size(colvarsarray[i],axis=1)-2)
+       else:
+         colgenerread.append(colgener-1)
+
 # ROUTINE TO CALCULATE THE NUMBER OF EFFECTIVE POINTS (USEFUL TO REDUCE NUMBER OF POINTS AND THUS FORCE CALCULATIONS)
 
-def calc_eff_points(numpoints, inputarray):
+def calc_eff_points(numpoints, inputarray, npointsins):
    diffc=np.zeros((numpoints,ndim))
    distance=np.zeros((numpoints))
+   numinbin=np.zeros((numpoints),dtype=np.int64)
    neffp=1 
    ceff=np.zeros((numpoints,ndim))
    ceff[0,:]=inputarray[0,:]
+   numinbin[0]=1
    totperiodic=np.sum(periodic[0:ndim])
    for i in range(1,numpoints):
       diffc[0:neffp,:]=ceff[0:neffp,:]-inputarray[i,:]
@@ -419,21 +468,67 @@ def calc_eff_points(numpoints, inputarray):
       diffc[0:neffp,:]=2.0*diffc[0:neffp,:]/width[0:ndim]
       diffc[0:neffp,:]=diffc[0:neffp,:]*diffc[0:neffp,:]
       distance[0:neffp]=np.sum(diffc[0:neffp,:],axis=1)
-      mindistance=np.amin(distance[0:neffp])
+      whichbin=np.argmin(distance[0:neffp])
+      mindistance=distance[whichbin]
       if mindistance>1:
         ceff[neffp,:]=inputarray[i,:]
+        whichbin=neffp
         neffp=neffp+1
-   return ceff[0:neffp], neffp
+      numinbin[whichbin]=numinbin[whichbin]+npointsins[i]
+   return ceff[0:neffp], neffp, numinbin[0:neffp]
 
-# fast effective points using fast data binning
+# try to do a faster routine 
 
-def fast_calc_eff_points(numepoints, effparray):
+def calc_eff_points_bins(numepoints, effparray, npointsins):
+   colvarsbineff=np.zeros((numepoints, ndim))
+   nbins=1
+   mywidth=width/2.0
    diffc=np.zeros((numepoints,ndim))
-   myshift=np.ones((ndim))
+   distance=np.zeros((numepoints))
+   diffbin=np.zeros(ndim)
+   colvarbin=np.zeros(ndim)
+   numinbin=np.zeros((numepoints),dtype=np.int64)
+   totperiodic=np.sum(periodic[0:ndim])
+   colvarsbineff[0,:]=lowbound+0.5*box+0.5*mywidth
+   for i in range(0,numepoints):
+      diffc[i,:]=effparray[i,:]-(lowbound+0.5*box)
+      if totperiodic>0:
+        diffc[i,:]=diffc[i,:]/box[0:ndim]
+        diffc[i,:]=diffc[i,:]-np.rint(diffc[i,:])*periodic[0:ndim]
+        diffc[i,:]=diffc[i,:]*box[0:ndim]
+      colvarbin=0.5*mywidth+mywidth*np.floor(diffc[i,:]/mywidth)+lowbound+0.5*box
+      colvarbin=(colvarbin-(lowbound+0.5*box))/box[0:ndim]
+      colvarbin=colvarbin-np.rint(colvarbin)*periodic[0:ndim]
+      colvarbin=colvarbin*box[0:ndim]+(lowbound+0.5*box)
+      diffc[0:nbins,:]=colvarsbineff[0:nbins,:]-colvarbin[:]
+      if totperiodic>0:
+        diffc[0:nbins,:]=diffc[0:nbins,:]/box[0:ndim]
+        diffc[0:nbins,:]=diffc[0:nbins,:]-np.rint(diffc[0:nbins,:])*periodic[0:ndim]
+        diffc[0:nbins,:]=diffc[0:nbins,:]*box[0:ndim]
+      diffc[0:nbins,:]=diffc[0:nbins,:]/mywidth[0:ndim]
+      diffc[0:nbins,:]=diffc[0:nbins,:]*diffc[0:nbins,:]
+      distance[0:nbins]=np.sum(diffc[0:nbins,:],axis=1)
+      whichbin=np.argmin(distance[0:nbins])
+      mindistance=distance[whichbin]
+      if mindistance>0.5:
+        colvarsbineff[nbins,:]=colvarbin
+        whichbin=nbins
+        nbins=nbins+1
+      numinbin[whichbin]=numinbin[whichbin]+npointsins[i]
+   return colvarsbineff, nbins, numinbin[0:nbins]
+
+# fast effective points using fast data binning (not always reliable but very fast, especially for high dimensionality)
+
+def fast_calc_eff_points(numepoints, effparray, npointsins):
+   diffc=np.zeros((numepoints,ndim))
+   myshift=np.ones((ndim),dtype=np.int64)
    mywidth=width/2.0
    shift=1
-   for i in range (0,ndim):
-      myshift[i]=shift*2*npointsv[i]
+   myshift[0]=1
+   binid=np.ones((numepoints),dtype=np.int64)
+   for i in range (1,ndim):
+      #myshift[i]=2*shift*(2*npointsv[i])
+      myshift[i]=shift*2*(npointsv[i])
       shift=myshift[i]
    totperiodic=np.sum(periodic[0:ndim])
    diffc[:,:]=effparray[:,:]-(lowbound+0.5*box) 
@@ -443,14 +538,20 @@ def fast_calc_eff_points(numepoints, effparray):
      diffc[:,:]=diffc[:,:]*box[0:ndim]
    bingrid=np.floor(diffc[:,:]/mywidth) 
    binid=np.sum(bingrid*myshift,axis=1)
-   effbinid=np.unique(binid,return_index=True) 
+   effbinid=np.unique(binid,return_index=True,return_inverse=True,return_counts=True)
+   neffp=effbinid[1].size
+   indexbin=np.argsort(effbinid[2][:])
+   effcount=np.cumsum(effbinid[3])
+   effindexbin=np.split(indexbin,effcount)
+   numinpoints=np.zeros((neffp),dtype=np.int64)
+   for i in range (0,neffp):
+      numinpoints[i]=np.sum(npointsins[effindexbin[i]])
    colvarbin=0.5*mywidth+mywidth*bingrid[effbinid[1][:],:]+(lowbound+0.5*box)
    if totperiodic>0:
      colvarbin=(colvarbin-(lowbound+0.5*box))/box[0:ndim]
      colvarbin=colvarbin-np.rint(colvarbin)*periodic[0:ndim]
      colvarbin=colvarbin*box[0:ndim]+(lowbound+0.5*box)     
-   neffp=effbinid[1].size 
-   return colvarbin[0:neffp,0:ndim], neffp   
+   return colvarbin[0:neffp,0:ndim], neffp, numinpoints[0:neffp]  
 
 #ROUTINE TO CALCULATE THE FORCE ON A SET OF POINTS
 
@@ -468,14 +569,19 @@ def calc_vhar_force(numepoints, numpoints, effparray, colvars, gradbias):
       diffc=2.0*diffc/width[0:ndim]
       distance=0.5*np.sum(diffc[0:numpoints,:]*diffc[0:numpoints,:],axis=1)
       whichpoints=np.where(distance<wcutoff) 
-      whichpoints=np.array(whichpoints)
-      whichpoints=np.ndarray.flatten(whichpoints) 
-      weight=np.exp(-distance[whichpoints[:]])
+      #whichpoints=np.array(whichpoints)
+      #whichpoints=np.ndarray.flatten(whichpoints) 
+      weight=np.exp(-distance[whichpoints[0][:]])
+      #weight=np.exp(np.sum(-0.5*diffc[0:numpoints,:]*diffc[0:numpoints,:],axis=1))
       if weight.size>0:
-        if np.amax(weight)>0:  
-          for j in range(0,ndim):
-             grade[i,j]=-np.average(2.0*kb*temp*diffc[whichpoints[:],j]/width[j]+gradbias[whichpoints[:],j],weights=weight[:])
-             tweights[i]=np.sum(weight) 
+        #if np.amax(weight)>0:  
+      #for j in range(0,ndim):
+        #grade[i,j]=-np.average(2.0*kb*temp*diffc[whichpoints[:],j]/width[j]+gradbias[whichpoints[:],j],weights=weight[:]) 
+      #grade[i,:]=-np.sum((2.0*kb*temp*diffc[0:numpoints,:]/width[:]+gradbias[0:numpoints,:])*weight[0:numpoints,np.newaxis],axis=0)
+        grade[i,:]=-np.sum((2.0*kb*temp*diffc[whichpoints[0][:],:]/width[:]+gradbias[whichpoints[0][:],:])*weight[:,np.newaxis],axis=0) 
+        tweights[i]=np.sum(weight)
+        if tweights[i]>0:
+          grade[i,:]=grade[i,:]/tweights[i] 
    return grade,tweights
 
 # ROUTINE TO BIN THE DATA STARTING FROM FIRST POINT
@@ -489,37 +595,44 @@ def bin_data(numepoints, effparray, weights, gradarray):
    diffbin=np.zeros(ndim)
    colvarbin=np.zeros(ndim)
    weightbin=np.zeros((numepoints))
-   numinbin=np.zeros((numepoints),dtype=np.int32)
+   numinbin=np.zeros((numepoints),dtype=np.int64)
    #indexmax=np.argmax(weights)
    indexmax=0
    totperiodic=np.sum(periodic[0:ndim])
-   colvarsbineff[0,:]=effparray[indexmax,:]
+   #colvarsbineff[0,:]=effparray[indexmax,:]
+   colvarsbineff[0,:]=lowbound+0.5*box+0.5*width
    for i in range(0,numepoints):
-      diffc[i,:]=effparray[i,:]-(effparray[indexmax,:]-0.5*width)
-      diffc[i,:]=diffc[i,:]/box[0:ndim]
-      diffc[i,:]=diffc[i,:]-np.rint(diffc[i,:])*periodic[0:ndim]
-      diffc[i,:]=diffc[i,:]*box[0:ndim]
-      colvarbin=width*np.floor(diffc[i,:]/width)+effparray[indexmax,:]
+      #diffc[i,:]=effparray[i,:]-(effparray[indexmax,:]-0.5*width)
+      diffc[i,:]=effparray[i,:]-(lowbound+0.5*box)
+      if totperiodic>0:
+        diffc[i,:]=diffc[i,:]/box[0:ndim]
+        diffc[i,:]=diffc[i,:]-np.rint(diffc[i,:])*periodic[0:ndim]
+        diffc[i,:]=diffc[i,:]*box[0:ndim]
+      colvarbin=0.5*width+width*np.floor(diffc[i,:]/width)+lowbound+0.5*box
       colvarbin=(colvarbin-(lowbound+0.5*box))/box[0:ndim]
       colvarbin=colvarbin-np.rint(colvarbin)*periodic[0:ndim]
       colvarbin=colvarbin*box[0:ndim]+(lowbound+0.5*box)
       diffc[0:nbins,:]=colvarsbineff[0:nbins,:]-colvarbin[:]
-      diffc[0:nbins,:]=diffc[0:nbins,:]/box[0:ndim]
-      diffc[0:nbins,:]=diffc[0:nbins,:]-np.rint(diffc[0:nbins,:])*periodic[0:ndim]
-      diffc[0:nbins,:]=diffc[0:nbins,:]*box[0:ndim]
+      if totperiodic>0:
+        diffc[0:nbins,:]=diffc[0:nbins,:]/box[0:ndim]
+        diffc[0:nbins,:]=diffc[0:nbins,:]-np.rint(diffc[0:nbins,:])*periodic[0:ndim]
+        diffc[0:nbins,:]=diffc[0:nbins,:]*box[0:ndim]
       diffc[0:nbins,:]=diffc[0:nbins,:]/width[0:ndim]
       diffc[0:nbins,:]=diffc[0:nbins,:]*diffc[0:nbins,:]
       distance[0:nbins]=np.sum(diffc[0:nbins,:],axis=1)
-      mindistance=np.amin(distance[0:nbins])  
+      whichbin=np.argmin(distance[0:nbins])
+      mindistance=distance[whichbin]  
       if mindistance>0.5:
         colvarsbineff[nbins,:]=colvarbin
+        whichbin=nbins
         nbins=nbins+1
-      whichbin=np.argmin(distance[0:nbins])
       numinbin[whichbin]=numinbin[whichbin]+1
       gradbin[whichbin,:]=gradbin[whichbin,:]+gradarray[i,:]*weights[i]
+      #gradbin[whichbin,:]=gradbin[whichbin,:]+gradarray[i,:]
       weightbin[whichbin]=weightbin[whichbin]+weights[i]   
    for j in range(0,ndim):
       gradbin[0:nbins,j]=np.where(weightbin[0:nbins]>0,gradbin[0:nbins,j]/weightbin[0:nbins],0)
+      #gradbin[0:nbins,j]=np.where(weightbin[0:nbins]>0,gradbin[0:nbins,j]/numinbin[0:nbins],0) 
    #weightbin[0:nbins]=np.where(numinbin[0:nbins]>0,weightbin[0:nbins]/numinbin[0:nbins],0)
    return colvarsbineff, gradbin, weightbin, nbins
 
@@ -527,11 +640,13 @@ def bin_data(numepoints, effparray, weights, gradarray):
 
 def fast_bin_data(numepoints, effparray, weights, gradarray):
    diffc=np.zeros((numepoints,ndim))
-   myshift=np.ones((ndim))
+   myshift=np.ones((ndim),dtype=np.int64)
+   binid=np.ones((numepoints),dtype=np.int64) 
    mywidth=width
    shift=1
-   for i in range (0,ndim):
-      myshift[i]=shift*npointsv[i]
+   myshift[0]=1
+   for i in range (1,ndim):
+      myshift[i]=shift*(npointsv[i]+2)
       shift=myshift[i]
    totperiodic=np.sum(periodic[0:ndim])
    diffc[:,:]=effparray[:,:]-(lowbound+0.5*box)
@@ -540,24 +655,16 @@ def fast_bin_data(numepoints, effparray, weights, gradarray):
      diffc[:,:]=diffc[:,:]-np.rint(diffc[:,:])*periodic[0:ndim]
      diffc[:,:]=diffc[:,:]*box[0:ndim]
    bingrid=np.floor(diffc[:,:]/mywidth)
-   binid=np.sum(bingrid*myshift,axis=1)
+   binid=np.sum((bingrid[:,0:ndim])*myshift[np.newaxis,0:ndim],axis=1)
    effbinid=np.unique(binid,return_index=True,return_inverse=True,return_counts=True)
    neffp=effbinid[1].size
    gradbin=np.zeros((neffp,ndim))
    weightbin=np.zeros((neffp))
    indexbin=np.argsort(effbinid[2][:])
    effcount=np.cumsum(effbinid[3])
-   #newgradarray=gradarray[indexbin[:]]
-   #newweights=weights[indexbin[:]]
-   #splitgradarray=np.split(newgradarray,effcount)
-   #splitweights=np.split(newweights,effcount)
-   #for i in range (0,ndim):
-   #   gradbin[0:neffp][0:ndim]=np.sum(splitgradarray[0:neff][i]*splitweights[0:neff],axis=1)
-   #weightbin[0:neffp]=np.sum(splitweights[0:neff],axis=1)
    effindexbin=np.split(indexbin,effcount)
    for i in range (0,neffp):
-      for j in range (0,ndim):
-         gradbin[i,j]=np.sum(gradarray[effindexbin[i],j]*weights[effindexbin[i]])
+      gradbin[i,:]=np.sum(gradarray[effindexbin[i],:]*weights[effindexbin[i],np.newaxis],axis=0)
       weightbin[i]=np.sum(weights[effindexbin[i]]) 
    for j in range (0,ndim):
       gradbin[:,j]=np.where(weightbin[:]>0,gradbin[:,j]/weightbin[:],0)
@@ -573,10 +680,14 @@ def fast_bin_data(numepoints, effparray, weights, gradarray):
 if do_hills_bias:
   print ("Calculating metadynamics bias forces on each COLVAR point of the selected variables from the HILLS files...")
   for k in range (0,ncolvars):
+     if k==0:
+       gaussenergy=[np.zeros((npoints[k]))]
+     else:
+       gaussenergy.append(np.zeros((npoints[k])))
      diff=np.zeros((nhills[k],nactive[k]))
      diff2=np.zeros((nhills[k],nactive[k]))
      expdiff=np.zeros((nhills[k]))
-     whichhills=np.zeros((nhills[k]),dtype=np.int32)
+     whichhills=np.zeros((nhills[k]),dtype=np.int64)
      trh=0
      index=0
      dvec=np.arange(nhills[k])
@@ -584,7 +695,6 @@ if do_hills_bias:
        countinter=0
        numhills=0 
        for i in range(0,npoints[k]):
-          gaussenergy=0
           whichhills_old=whichhills
           if i>0 and colvarsarray[k][i,0]<colvarsarray[k][i-1,0]:
             if hillsarray[k][numhills-1,0]>hillsarray[k][numhills,0]: 
@@ -614,14 +724,14 @@ if do_hills_bias:
             expdiff[0:numhills]=np.sum(diff2[0:numhills,0:nactive[k]],axis=1)
             expdiff[0:numhills]=np.where(expdiff[0:numhills]<hcutoff,np.exp(-expdiff[0:numhills]),0.0)
             expdiff[0:numhills]=hillsarray[k][0:numhills,2*nactive[k]+1]*expdiff[0:numhills]
-            gaussenergy=np.sum(expdiff[0:numhills])
+            gaussenergy[k][i]=np.sum(expdiff[0:numhills])
             for j in range(0,nactive[k]):  
                gradv[k][i,iactive[k,j]]=np.sum(diff[0:numhills,j]*expdiff[0:numhills]/hillsarray[k][0:numhills,nactive[k]+1+j],axis=0)
           with open(bias_grad_file, 'a') as f:
               f.write("%s " % (colvarsarray[k][i,0]))
               for j in range(0,ndim):
                  f.write("%s " % (gradv[k][i,j]))
-              f.write("%s " % gaussenergy)
+              f.write("%s " % gaussenergy[k][i])
               f.write("%s " % numhills)
               f.write("%s " % trh)
               f.write("%s " % index)
@@ -645,22 +755,28 @@ if read_gfile:
   if ngfiles==1: 
     gradarray = [np.loadtxt(gfile[0])]
     if np.sum(npoints[:])!=len(gradarray[0]):
-      print ("ERROR: gradient file doesn't match COLVAR files") 
+      print ("ERROR: gradient file doesn't match COLVAR files")
+      sys.exit() 
     totpoints=0
     for k in range (0,ncolvars):
        if k==0:
          gradv=[gradarray[0][totpoints:totpoints+npoints[k],1:ndim+1]]
+         gaussenergy=[gradarray[0][totpoints:totpoints+npoints[k],ndim+1]]
        if k>0:
          gradv.append(gradarray[0][totpoints:totpoints+npoints[k],1:ndim+1])
+         gaussenergy.append(gradarray[0][totpoints:totpoints+npoints[k],ndim+1]) 
        totpoints=totpoints+npoints[k]
   else:
     for k in range (0,ngfiles):
        if npoints[k]!=len(gradarray[k]):
-         print ("ERROR: gradient file doesn't match COLVAR file") 
+         print ("ERROR: gradient file doesn't match COLVAR file")
+         sys.exit() 
        if k==0:    
          gradv=[gradarray[:,1:ndim+1]]
+         gaussenergy=[gradarray[:,ndim+1]]
        if k>0:
          gradv.append(gradarray[:,1:ndim+1]) 
+         gaussenergy.append(gradarray[:,ndim+1])
 
 # create masked colvarsarray and gradv eliminating values beyond boundaries
 if do_boundaries:
@@ -675,10 +791,39 @@ if do_boundaries:
      colvarsarray[i]=np.ma.mask_rows(colvarsarray[i])
      gradv[i]=np.ma.masked_invalid(gradv[i])
      gradv[i]=np.ma.mask_rows(gradv[i])
+
   #Debug
   #for i in range (0,npoints[i]):
   #   print colvarsarray[0][i,0],gradv[0][i,0],gradv[0][i,1] 
   #sys.exit()     
+
+
+# create masked colvarsarray and gradv filtering values according to the difference between the calculated Gaussian energy
+# the one repoted in the COLVAR file
+
+if do_gefilter: 
+  if do_hills_bias or read_gfile:
+    for i in range (0,ncolvars):
+       if nactive[i]>0: 
+         tmpcolvarsarray=colvarsarray[i]
+         diffc=np.abs(tmpcolvarsarray[:,colgenerread[i]]-gaussenergy[i][:])     
+         for j in range(0,ndim):
+            gradv[i][0:npoints[i],j]=np.where(diffc[0:npoints[i]]>tgefilt,'NaN',gradv[i][0:npoints[i],j])
+         colvarsarray[i][0:npoints[i],0]=np.where(diffc[0:npoints[i]]>tgefilt,'NaN',colvarsarray[i][0:npoints[i],0])
+         colvarsarray[i]=np.ma.masked_invalid(colvarsarray[i])
+         colvarsarray[i]=np.ma.mask_rows(colvarsarray[i])
+         gradv[i]=np.ma.masked_invalid(gradv[i])
+         gradv[i]=np.ma.mask_rows(gradv[i])
+  #Debug
+  #       for j in range (0,npoints[i]):
+  #          print colvarsarray[i][j,0],colvarsarray[i][j,1],colvarsarray[i][j,2],gradv[i][j,0],gradv[i][j,1],colgenerread[i],tmpcolvarsarray[j,colgenerread[i]],gaussenergy[i][j] 
+  #     else:
+  #       for j in range (0,npoints[i]):
+  #          print colvarsarray[i][j,0],colvarsarray[i][j,1],colvarsarray[i][j,2],gradv[i][j,0],gradv[i][j,1],colgenerread[i],colvarsarray[i][j,colgenerread[i]],gaussenergy[i][j]           
+  #  sys.exit()     
+
+for i in range (0,ncolvars):
+   print "NUMBER OF POINTS FOR WALKER ",i,": ",len(colvarsarray[i][:,0][~colvarsarray[i][:,0].mask])
 
 # CALCULATE NUMBER OF EFFECTIVE POINTS IF REQUIRED
 
@@ -687,44 +832,56 @@ if calc_epoints:
   for k in range (0,ncolvars):
      ntotpoints=len(colvarsarray[k][:,0][~colvarsarray[k][:,0].mask])
      if k==0:    
-       colvarseff=[np.zeros((ntotpoints,ndim))] 
+       colvarseff=[np.zeros((ntotpoints,ndim))]
+       numinpoint=[np.ones((ntotpoints),dtype=np.int64)] 
        neffpoints=[1]
      else:
        colvarseff.append(np.zeros((ntotpoints,ndim)))
+       numinpoint.append(np.ones((ntotpoints),dtype=np.int64))
        neffpoints.append(1)      
      arrayin=np.zeros((ntotpoints,ndim))
      for j in range (0,ndim):
         arrayin[:,j]=colvarsarray[k][:,whichcv[j]+1][~colvarsarray[k][:,whichcv[j]+1].mask]
      if do_fast_eff_p_calc: 
-       colvarseff[k],neffpoints[k]=fast_calc_eff_points(ntotpoints, arrayin) 
+       colvarseff[k],neffpoints[k],numinpoint[k]=fast_calc_eff_points(ntotpoints, arrayin, numinpoint[k]) 
      else:
-       colvarseff[k],neffpoints[k]=calc_eff_points(ntotpoints, arrayin)
-      
- 
+       if do_bin_eff_p_calc:
+         colvarseff[k],neffpoints[k],numinpoint[k]=calc_eff_points_bin(ntotpoints, arrayin, numinpoint[k])
+       else:
+         colvarseff[k],neffpoints[k],numinpoint[k]=calc_eff_points(ntotpoints, arrayin, numinpoint[k])
+       
      # MERGE POINTS
      if k==0:
        colvareffarray=colvarseff[k][0:neffpoints[k],:]
+       numinarray=numinpoint[k][0:neffpoints[k]]
      else:
        colvareffarray=np.concatenate((colvareffarray,colvarseff[k][0:neffpoints[k],:]),axis=0)
-
+       numinarray=np.concatenate((numinarray,numinpoint[k][0:neffpoints[k]]))
+  
   # recalculate effective points
   nepoints=len(colvareffarray)
   colvarseff=np.zeros((nepoints,ndim))
+  numinpoint=np.ones((nepoints),dtype=np.int64)
   if ncolvars==1:
     neffpoints=nepoints
-    colvarseff=colvareffarray 
+    colvarseff=colvareffarray
+    numinpoint=numinarray 
   if ncolvars>1:  
     neffpoints=1
     if do_fast_eff_p_calc:
-      colvarseff,neffpoints=fast_calc_eff_points(nepoints, colvareffarray)
+      colvarseff,neffpoints,numinpoint=fast_calc_eff_points(nepoints, colvareffarray, numinarray)
     else:
-      colvarseff,neffpoints=calc_eff_points(nepoints, colvareffarray) 
+      if do_bin_eff_p_calc:
+        colvarseff,neffpoints,numinpoint=calc_eff_points_bin(nepoints, colvareffarray, numinarray) 
+      else:
+        colvarseff,neffpoints,numinpoint=calc_eff_points(nepoints, colvareffarray, numinarray)
+
   for i in range (0,neffpoints):
      with open(eff_points_file, 'a') as f:
          f.write("%s " % (i))
-         for j in range (0,ndim-1):
+         for j in range (0,ndim):
             f.write("%s " % (colvarseff[i,j]))
-         f.write("%s \n" % (colvarseff[i,ndim-1]))
+         f.write("%s \n" % (numinpoint[i]))
  
 if read_efile:
   print ("Reading effective points from external file...")
@@ -742,10 +899,14 @@ if read_efile:
   neffpoints=1
   arrayin=np.zeros((nepoints,ndim))
   arrayin[0:nepoints,0:ndim]=colvareffarray[0:nepoints:,1:ndim+1]
+  numinpoint=colvareffarray[0:nepoints:,ndim+1]
   if do_fast_eff_p_calc:
-    colvarseff,neffpoints=fast_calc_eff_points(nepoints, arrayin) 
+    colvarseff,neffpoints, numinpoint=fast_calc_eff_points(nepoints, arrayin, numinpoint) 
   else:
-    colvarseff,neffpoints=calc_eff_points(nepoints, arrayin) 
+    if do_bin_eff_p_calc:
+      colvarseff,neffpoints, numinpoint=calc_eff_points_bin(nepoints, arrayin, numinpoint) 
+    else:
+      colvarseff,neffpoints, numinpoint=calc_eff_points(nepoints, arrayin, numinpoint)
 
 # CALC FORCE ON EFFECTIVE POINTS
 
@@ -762,7 +923,7 @@ if calc_force_eff:
      for j in range (0,ndim):
         arrayin[:,j]=colvarsarray[k][:,whichcv[j]+1][~colvarsarray[k][:,whichcv[j]+1].mask]
         gradvin[:,j]=gradv[k][:,j][~gradv[k][:,j].mask]
-     gradr, weightr=calc_vhar_force(neffpoints, ntotpoints, colvarseff, arrayin, gradvin)  
+     gradr, weightr=calc_vhar_force(neffpoints, ntotpoints, colvarseff, arrayin, gradvin) 
      weighttot=weighttot+weightr 
      for j in range(0,ndim):
         grad[0:neffpoints,j]=grad[0:neffpoints,j]+gradr[0:neffpoints,j]*weightr[0:neffpoints]
@@ -770,7 +931,7 @@ if calc_force_eff:
      grad[0:neffpoints,j]=np.where(weighttot[0:neffpoints]>0,grad[0:neffpoints,j]/(weighttot[0:neffpoints]),0)
   for i in range(0,neffpoints):
      with open(force_points_file, 'a') as f:  
-         f.write("%s " % (i))
+         #f.write("%s " % (i))
          for j in range (0,ndim):
             f.write("%s " % (colvarseff[i,j]))
          for j in range (0,ndim):
@@ -789,9 +950,9 @@ if read_ffile:
      try:
          tryarray = np.loadtxt(ffile[n])
          if n==0:
-           colvarseff=tryarray[:,1:ndim+1]
-           gradr=tryarray[:,ndim+1:2*ndim+1]
-           weightr=tryarray[:,2*ndim+1]
+           colvarseff=tryarray[:,0:ndim]
+           gradr=tryarray[:,ndim:2*ndim]
+           weightr=tryarray[:,2*ndim]
            neffpoints=len(colvarseff)
            weighttot=weightr
            grad=np.zeros((neffpoints,ndim)) 
@@ -799,21 +960,29 @@ if read_ffile:
               grad[0:neffpoints,j]=grad[0:neffpoints,j]+gradr[0:neffpoints,j]*weightr[0:neffpoints]
          else:
            if len(tryarray)!=neffpoints:
-             print ("Error, please provide files with the same lenght")
+             print ("ERROR, please provide files with the same lenght")
              sys.exit()
-           distance=np.amax(4*(colvarseff[:,:]-tryarray[:,1:ndim+1])*(colvarseff[:,:]-tryarray[:,1:ndim+1])/(width[0:ndim]*width[0:ndim])) 
+           distance=np.amax(4*(colvarseff[:,:]-tryarray[:,0:ndim])*(colvarseff[:,:]-tryarray[:,0:ndim])/(width[0:ndim]*width[0:ndim])) 
            if distance>1:
-             print ("Error, points where forces have been calculated are different")
+             print ("ERROR, points where forces have been calculated are different")
              sys.exit()
-           weightr=tryarray[:,2*ndim+1]
+           weightr=tryarray[:,2*ndim]
            weighttot=weighttot+weightr 
-           gradr=tryarray[:,ndim+1:2*ndim+1]
+           gradr=tryarray[:,ndim:2*ndim]
            for j in range(0,ndim):
               grad[0:neffpoints,j]=grad[0:neffpoints,j]+gradr[0:neffpoints,j]*weightr[0:neffpoints]
      except IOError:
          pass
   for j in range(0,ndim):
      grad[0:neffpoints,j]=np.where(weighttot[0:neffpoints]>0,grad[0:neffpoints,j]/(weighttot[0:neffpoints]),0)
+  for i in range(0,neffpoints):
+     with open(force_points_file_comb, 'a') as f:
+         #f.write("%s " % (i))
+         for j in range (0,ndim):
+            f.write("%s " % (colvarseff[i,j]))
+         for j in range (0,ndim):
+            f.write("%s " % (grad[i,j]))
+         f.write("%s \n " % (weighttot[i]))
 
 if do_bin_data:
   bincolvars=np.zeros((neffpoints,ndim))         
