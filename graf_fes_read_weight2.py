@@ -6,7 +6,7 @@ from glob import glob
 from copy import deepcopy
 
 # read the grid with the gradients
-tmparray = np.loadtxt("grad_binned.dat")
+tmparray = np.loadtxt("force_on_eff_points_comb.out")
 npoints=len(tmparray)
 #ndim=int(len(tmparray[0])/2)
 ndim=2
@@ -14,7 +14,7 @@ ndim=2
 # now read the header
 header=np.zeros((ndim,4))
 count=0
-f=open ("grad_binned.dat", 'r')
+f=open ("force_on_eff_points_comb.out", 'r')
 for line in f:
    count=count+1
    if count>1: 
@@ -43,14 +43,14 @@ maxneigh=2**ndim
 nneigh=np.zeros((npoints),dtype=np.int32)
 #neigh=np.ones((npoints,maxneigh),dtype=np.int32) # not needed for now
 #neigh=-neigh # not needed for now
-tol=10**-10
+tol=10**-20
 nsteps=1000000
 temp=300
 kb=0.00831
-maxvalfes=20*kb*temp
+maxvalfes=40*kb*temp
 ratef=0.01
-gamma=100000.0
-rfact=1.005
+gamma=10000
+rfact=1.0001
 lambdamod=0
 deltalambdamod=0
 
@@ -71,13 +71,15 @@ gradmtot=np.zeros((npoints,ndim))
 weight_p=np.zeros((npoints,ndim))
 weight_m=np.zeros((npoints,ndim))
 
-totperiodic=np.sum(periodic)
+# enforce constant weight
+#tmparray[:,2*ndim]=1
+#
+
 for i in range(0,npoints):
     diff=tmparray[i,0:ndim]-tmparray[:,0:ndim]
-    if totperiodic>0:
-      diff=diff/box
-      diff=diff-np.rint(diff)*periodic
-      diff=diff*box
+    diff=diff/box
+    diff=diff-np.rint(diff)*periodic
+    diff=diff*box
     dist=np.sum(np.abs(diff)/width,axis=1)
     neighs=np.where(np.rint(dist)==1)
     whichneigh=neighs[0]
@@ -94,13 +96,13 @@ for i in range(0,npoints):
         # assign availability of minus one gradient
         avail_m[i,:]=avail_m[i,:]+indexing_m 
         grad_m[i,:]=grad_m[i,:]+indexing_m*tmparray[whichneigh[j],ndim:2*ndim]
-        weight_m[i,:]=weight_m[i,:]+indexing_m*tmparray[whichneigh[j],2*ndim]
+        weight_m[i,:]=weight_m[i,:]+indexing_m*tmparray[whichneigh[j],2*ndim:3*ndim]
         neigh_m[i,:]=neigh_m[i,:]+whichneigh[j]*indexing_m
         indexing_p=np.where(np.rint(signdist)==-1,1,0)
         # assign availability of plus one gradient
         avail_p[i,:]=avail_p[i,:]+indexing_p
         grad_p[i,:]=grad_p[i,:]+indexing_p*tmparray[whichneigh[j],ndim:2*ndim]
-        weight_p[i,:]=weight_p[i,:]+indexing_p*tmparray[whichneigh[j],2*ndim]
+        weight_p[i,:]=weight_p[i,:]+indexing_p*tmparray[whichneigh[j],2*ndim:3*ndim]
         neigh_p[i,:]=neigh_p[i,:]+whichneigh[j]*indexing_p
         #neigh[i,j]=whichneigh[j] #not needed for now 
 
@@ -135,7 +137,9 @@ fesp=np.zeros((npoints,ndim))
 fesm=np.zeros((npoints,ndim))
 
 for j in range(0,ndim):
-   gradfw[:,j]=np.where(avail_mp[:,j]>0.5,0.5/width[j],1/width[j]) 
+   gradfw[:,j]=np.where(avail_mp[:,j]>0.5,0.5/width[j],1/width[j])
+   weight_p[:,j]=weight_p[:,j]/np.sum(weight_p[:,j]) 
+   weight_m[:,j]=weight_m[:,j]/np.sum(weight_m[:,j])
 #   gradfw[:,j]=gradfw[:,j]*((avail_mp[:,j]*(1/(2*width[j])))+((1-avail_mp[:,j])*(1/width[j])))
    
 for j in range(0,ndim):
