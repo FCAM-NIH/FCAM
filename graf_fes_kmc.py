@@ -4,13 +4,15 @@ import numpy as np
 import argparse, os, sys
 from glob import glob
 from copy import deepcopy
+import time
+start_time = time.time()
 
 # read the grid with the gradients
 tmparray = np.loadtxt("force_on_bin_points.out")
 npoints=len(tmparray)
 #ndim=int(len(tmparray[0])/2)
 ndim=2
-
+nearest=False
 # now read the header
 header=np.zeros((ndim,4))
 count=0
@@ -26,8 +28,8 @@ for line in f:
 
 # assign lowerboundary, width, number of points for each variable and periodicity 
 
-with open("per_iteration_kmc_output.dat" , 'w') as f:
-    f.write("# Iteration, colvar, etc. \n")
+#with open("per_iteration_kmc_output.dat" , 'w') as f:
+#    f.write("# Iteration, colvar, etc. \n")
 
 lowbound=np.zeros((ndim))
 width=np.zeros((ndim))
@@ -42,107 +44,85 @@ box=width*npointsv
 
 # now find number of neighbours (useful for high dimensional sparse grid)
 
-maxneigh=2*ndim
+if nearest:
+  maxneigh=2*ndim
+else:
+  maxneigh=np.power(3,ndim)-1
 nneigh=np.zeros((npoints),dtype=np.int32)
-neigh=np.ones((npoints,maxneigh),dtype=np.int32) # not needed for now
-neigh=-neigh # not needed for now
+neigh=np.ones((npoints,maxneigh),dtype=np.int32)
+ncol=np.ma.size(tmparray,axis=1)
+weights=np.zeros((npoints,ndim))
+if ncol>2*ndim+1:
+  weights=tmparray[:,2*ndim:3*ndim]
+else:
+  for j in range(0,ndim):
+     weights[:,j]=tmparray[:,2*ndim]  
+neigh=-neigh 
 nsteps=20000000
 temp=1298
 kb=0.00831
-
-grad_mp=np.zeros((2,npoints,ndim))
-avail_mp=np.zeros((2,npoints,ndim),dtype=np.int8)
-neigh_mp=np.zeros((2,npoints,ndim),dtype=np.int32)
-grad2diff=np.zeros((npoints,ndim))
-gradpdiff=np.zeros((npoints,ndim))
-gradmdiff=np.zeros((npoints,ndim))
-gradmtot=np.zeros((npoints,ndim))
-weight_mp=np.zeros((2,npoints,ndim))
-whichdim=np.ones((npoints,2*ndim),dtype=np.int32)
-whichsign=np.ones((npoints,2*ndim),dtype=np.int8)
-whichdim=-whichdim
-whichsign=-whichsign
+prob=np.zeros((npoints,maxneigh))
 
 totperiodic=np.sum(periodic)
-for i in range(0,npoints):
-    diff=tmparray[i,0:ndim]-tmparray[:,0:ndim]
+# assign neighbours and probabilities
+for i in range(0,npoints-1):
+    diff=tmparray[i,0:ndim]-tmparray[i+1:npoints,0:ndim]
     if totperiodic>0:
       diff=diff/box
       diff=diff-np.rint(diff)*periodic
       diff=diff*box
-    dist=np.sum(np.abs(diff)/width,axis=1)
-    neighs=np.where(np.rint(dist)==1)
-    whichneigh=neighs[0]
-    nneigh[i]=len(whichneigh)
-
-    # assign neighbours as well as foward and backward gradients
-    for j in range(0,nneigh[i]):
-        diff=tmparray[i,0:ndim]-tmparray[whichneigh[j],0:ndim]
-        if totperiodic>0:
-          diff=diff/box
-          diff=diff-np.rint(diff)*periodic
-          diff=diff*box        
-        signdist=(diff)/width
-        indexing_m=np.where(np.rint(signdist)==1)
-        indexing_p=np.where(np.rint(signdist)==-1)      
-        if indexing_m[0].size>0:
-          whichdim[i,j]=indexing_m[0][0]
-          whichsign[i,j]=0
-        else:
-          whichdim[i,j]=indexing_p[0][0]  
-          whichsign[i,j]=1
-        #whichsign[i,j]=0*indexing_m[0].size+1*indexing_p[0].size
-        # assign availability of minus one and plus one gradient
-        avail_mp[whichsign[i,j],i,whichdim[i,j]]=1
-        grad_mp[whichsign[i,j],i,whichdim[i,j]]=tmparray[whichneigh[j],ndim+whichdim[i,j]]
-        weight_mp[whichsign[i,j],i,whichdim[i,j]]=tmparray[whichneigh[j],2*ndim]
-        neigh_mp[whichsign[i,j],i,whichdim[i,j]]=whichneigh[j]
-        neigh[i,j]=whichneigh[j]
+    if nearest:
+      dist=np.sum(np.abs(diff)/width,axis=1)
+      neighs=np.where(np.rint(dist)==1)
+    else:
+      absdist=np.abs(diff)/width
+      maxdist=np.amax(absdist,axis=1)
+      neighs=np.where(np.rint(maxdist)==1)
+    whichneigh=neighs[0]+i+1
+    neigh[i,nneigh[i]:nneigh[i]+len(whichneigh)]=whichneigh[:]    
+    diffdist=diff[neighs[0],0:ndim]
+    avergrad=tmparray[whichneigh,ndim:2*ndim]*weights[whichneigh,0:ndim]+tmparray[i,ndim:2*ndim]*weights[i,0:ndim]
+    weighttot=weights[whichneigh,0:ndim]+weights[i,0:ndim]
+    avergrad=np.where(weighttot>0,avergrad/weighttot,0)
+    pippo=np.where(diffdist>0,1,0)
+    pippo2=np.where(weighttot==0,1,0)
+    pippo3=np.where(pippo*pippo2==1,0,1)
+    valid=np.amin(pippo3,axis=1)
+    energydiff=np.sum(avergrad*diffdist,axis=1)
+    prob[i,nneigh[i]:nneigh[i]+len(whichneigh)]=np.where(valid>0,np.exp(energydiff/(2*kb*temp)),0.0)
+    neigh[whichneigh[:],nneigh[whichneigh[:]]]=i
+    prob[whichneigh[:],nneigh[whichneigh[:]]]=np.where(valid>0,np.exp(-energydiff/(2*kb*temp)),0.0)
+    nneigh[i]=nneigh[i]+len(whichneigh)
+    nneigh[whichneigh[:]]=nneigh[whichneigh[:]]+1 
 
 print ("got the neighbours")
-
-#avail_mp=np.floor((avail_m+avail_p)/2)  
-
-#avail_bmp=avail_mp[0]*avail_mp[1]
 
 # now start to reconstruct the free energy
 # initialize the free energy to zero
 # fes and probability is defined on the same points as the gradient
 
-freq=np.zeros((npoints))
-prob_mp=np.zeros((2,npoints,ndim))
+freq=np.zeros((npoints,maxneigh))
+for j in range(0,maxneigh):
+   freq[:,j]=np.sum(prob,axis=1)
 
-for j in range(0,ndim):
-   energydiff=np.where(tmparray[:,2*ndim]+weight_mp[0,:,j]>0,width[j]*(tmparray[:,ndim+j]*tmparray[:,2*ndim]+grad_mp[0,:,j]*weight_mp[0,:,j])/(tmparray[:,2*ndim]+weight_mp[0,:,j]),0.0)
-   prob_mp[0,:,j]=np.where(avail_mp[0,:,j]*(tmparray[:,2*ndim]+weight_mp[0,:,j])>0,np.exp(energydiff[:]/(2*kb*temp)),0.0)
-   #prob_mp[0,:,j]=np.where(avail_mp[0,:,j]>0.5,1.0,0.0) # DEBUG  
-   energydiff=np.where(tmparray[:,2*ndim]+weight_mp[1,:,j]>0,-width[j]*(tmparray[:,ndim+j]*tmparray[:,2*ndim]+grad_mp[1,:,j]*weight_mp[1,:,j])/(tmparray[:,2*ndim]+weight_mp[1,:,j]),0.0)
-   prob_mp[1,:,j]=np.where(avail_mp[1,:,j]*(tmparray[:,2*ndim]+weight_mp[1,:,j])>0,np.exp(energydiff[:]/(2*kb*temp)),0.0)
-   #prob_mp[1,:,j]=np.where(avail_mp[1,:,j]>0.5,1.0,0.0) # DEBUG
-
-   
-for j in range(0,ndim):
-   freq[:]=freq[:]+prob_mp[0,:,j]+prob_mp[1,:,j]
-
-for j in range(0,ndim):
-   prob_mp[0,:,j]=np.where(freq[:]>0,prob_mp[0,:,j]/freq[:],0.0)
-   prob_mp[1,:,j]=np.where(freq[:]>0,prob_mp[1,:,j]/freq[:],0.0) 
-
+prob=np.where(freq>0,prob/freq,0.0)
+freq=freq[:,0]
 print ("probabilities calculated")
 
 # now run KMC
-   
-state=np.argmax(tmparray[:,2*ndim])
-time=0
+
+minweights=np.amin(weights,axis=1)   
+state=np.argmax(minweights)
+timekmc=0
 itt=0
 #names=str(tmparray[state,0:ndim])
 pop=np.zeros((npoints))
-#print time,names[1:-1]
+#print timekmc,names[1:-1]
 
 #with open("per_iteration_kmc_output.dat", 'a') as f:
 #    np.savetxt(f, tmparray[state,0:ndim], newline='')
 #    f.write(b"\n")
-#    f.write("%f " % (time))
+#    f.write("%f " % (timekmc))
 #    for i in range(0,ndim):
 #       f.write("%f " % (tmparray[state,i]))
 #    f.write("%i \n" % (state))
@@ -152,23 +132,23 @@ for nn in range(0,nsteps):
    state_old=state
    pop[state]=pop[state]+(1/freq[state])
    rand=np.random.rand()
-   #sign=whichsign[state,0:nneigh[state]]
-   #dim=whichdim[state,0:nneigh[state]]
-   #thisp=np.cumsum(prob_mp[sign[:],state,dim[:]])
+
+   #thisp=np.cumsum(prob[state,:])
    #states=np.where(thisp > rand)
    #state=neigh[state,states[0][0]]
-   #time=time-np.log(rand)/freq[state]
+   #timekmc=timekmc-np.log(rand)/freq[state]
+
+   # apparently is faster to have an explicit loop
    for j in range(0,nneigh[state]): 
-      sign=whichsign[state,j]
-      dim=whichdim[state,j]
-      thisp=thisp+prob_mp[sign,state,dim]
+      thisp=thisp+prob[state,j]
       if thisp > rand:
         rand=np.random.rand() 
-        time=time-np.log(rand)/freq[state]
+        timekmc=timekmc-np.log(rand)/freq[state]
         state=neigh[state,j]
         break
+
    #names=str(tmparray[state,0:ndim])
-   #print time,names[1:-1]
+   #print timekmc,names[1:-1]
 
 maxpop=np.amax(pop)
 for nn in range(0,npoints):
@@ -179,10 +159,12 @@ for nn in range(0,npoints):
 #   with open("per_iteration_kmc_output.dat", 'a') as f:
 #       np.savetxt(f, tmparray[state,0:ndim], newline='')
 #       f.write(b"\n")
-#       f.write("%f " % (time))
+#       f.write("%f " % (timekmc))
 #       for i in range(0,ndim):
 #          f.write("%f " % (tmparray[state,i]))
 #       f.write("%i \n" % (state))
+
+print("--- %s seconds ---" % (time.time() - start_time))
 
 sys.exit()
 #

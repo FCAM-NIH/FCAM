@@ -14,10 +14,18 @@ def parse():
                         default=-1.0,type=float, required=False)
     parser.add_argument("-kb", "--kb", help="Boltzmann factor for calculating the force constant (k) and defining free energy units. Default is 0.00831... kJ/mol", \
                         default=0.00831446261815324,type=float, required=False)
+    parser.add_argument("-gefilt","--gaussianenergyfilter", \
+                        help="Filter data by comparing the calculated gaussian energy with the one reported in the COLVAR file according to -valgefilt", \
+                        default=False, dest='do_gefilt', action='store_true')
     parser.add_argument("-colgener", "--colgener", help="Column to read the Gaussian energy in the COLVAR file for filtering (Default is the second last)", \
                         default=-1,type=int, required=False)
     parser.add_argument("-valgefilt", "--valgefilt", help="Difference threshold between calculated gaussian energy and the one reported in the COLVAR file for filtering ", \
                         default=1000.0,type=float, required=False)
+    parser.add_argument("-nfr", "--numframerest", help="Number of frames to filter out before and after restart ", \
+                        default=-1,type=int, required=False)
+    parser.add_argument("-backres","--backrestart", \
+                        help="Filter out just data before a restart according to --numframerest", \
+                        default=False, dest='do_backres', action='store_true')
     parser.add_argument("-nometaf","--nocalcmetabiasforce", \
                         help="Do not calculate bias forces of metadynamics Gaussian hills. By default metadynamics bias calculation is ON", \
                         default=True, dest='do_hbias', action='store_false')
@@ -42,9 +50,6 @@ def parse():
     parser.add_argument("-nobound","--noboundaries", \
                         help="Do not exclude data beyond grid boundaries", \
                         default=True, dest='do_bound', action='store_false')
-    parser.add_argument("-gefilt","--gaussianenergyfilter", \
-                        help="Filter data by comparing the calculated gaussian energy with the one reported in the COLVAR file according to -valgefilt", \
-                        default=False, dest='do_gefilt', action='store_true')
     parser.add_argument("-nofeffpc","--nofasteffpointcalc", \
                         help="Do not use algorithm for fast calculation of effective points (through binning)", \
                         default=True, dest='do_feffpc', action='store_false')
@@ -86,6 +91,7 @@ do_just_hills_bias=args.do_jmetab
 do_fast_eff_p_calc=args.do_feffpc
 do_bin_eff_p_calc=args.do_effpb
 do_fast_bin_data=args.do_fbind
+do_backrestart=args.do_backres
 bias_grad_file=args.outbiasgradfile
 eff_points_file=args.outeffpointsfile
 force_points_file=args.outeffforcefile
@@ -94,6 +100,7 @@ force_bin_file=args.outbinforcefile
 temp=args.temp
 kb=args.kb
 tgefilt=args.valgefilt
+nfrestart=args.numframerest
 colgener=args.colgener
 do_large_hfreq=args.do_hlfl
 
@@ -778,6 +785,25 @@ if read_gfile:
          gradv.append(gradarray[:,1:ndim+1]) 
          gaussenergy.append(gradarray[:,ndim+1])
 
+# create masked colvarsarray and gradv eliminating frames before and after restart
+
+if nfrestart>0:
+  for i in range (0,ncolvars):
+     getpoints=np.where(colvarsarray[i][1:npoints[i],0]<=colvarsarray[i][0:npoints[i]-1,0])
+     getipoints=getpoints[0]-nfrestart+1
+     if do_backrestart:
+       getfpoints=getpoints[0]+1
+     else:
+       getfpoints=getpoints[0]+nfrestart+1
+     for j in range (0,getpoints[0].size): 
+        if getipoints[j]<0:
+          getipoints[j]=getpoints[0][j]      
+        colvarsarray[i][getipoints[j]:getfpoints[j],0]='NaN'
+  #Debug
+  #for i in range (0,npoints[i]):
+  #   print colvarsarray[0][i,0],colvarsarray[0][i,1],colvarsarray[0][i,2],gradv[0][i,0],gradv[0][i,1] 
+  #sys.exit()     
+
 # create masked colvarsarray and gradv eliminating values beyond boundaries
 if do_boundaries:
   for i in range (0,ncolvars):
@@ -792,9 +818,18 @@ if do_boundaries:
      gradv[i]=np.ma.masked_invalid(gradv[i])
      gradv[i]=np.ma.mask_rows(gradv[i])
 
+if nfrestart>0:
+  for i in range (0,ncolvars):
+     for j in range(0,ndim):
+        gradv[i][:,j]=np.where(np.isnan(colvarsarray[i][:,0]),'NaN',gradv[i][:,j])
+     colvarsarray[i]=np.ma.masked_invalid(colvarsarray[i])
+     colvarsarray[i]=np.ma.mask_rows(colvarsarray[i])
+     gradv[i]=np.ma.masked_invalid(gradv[i])
+     gradv[i]=np.ma.mask_rows(gradv[i])
+     
   #Debug
   #for i in range (0,npoints[i]):
-  #   print colvarsarray[0][i,0],gradv[0][i,0],gradv[0][i,1] 
+  #   print colvarsarray[0][i,0],colvarsarray[0][i,1],colvarsarray[0][i,2],gradv[0][i,0],gradv[0][i,1] 
   #sys.exit()     
 
 
