@@ -12,6 +12,8 @@ def parse():
                         type=str, required=True)
     parser.add_argument("-temp", "--temp", help="Temperature (in Kelvin) for calculating the force constant (k) according to half bin width (k=4*kb*temp/(width*width)) ", \
                         default=-1.0,type=float, required=False)
+    parser.add_argument("-skip", "--skip", help="skip points when calculating forces (default 1)", \
+                        default=1,type=int, required=False)
     parser.add_argument("-kb", "--kb", help="Boltzmann factor for calculating the force constant (k) and defining free energy units. Default is 0.00831... kJ/mol", \
                         default=0.00831446261815324,type=float, required=False)
     parser.add_argument("-gefilt","--gaussianenergyfilter", \
@@ -98,6 +100,7 @@ force_points_file=args.outeffforcefile
 force_points_file_comb=args.outcombeffforcefile
 force_bin_file=args.outbinforcefile
 temp=args.temp
+skip=args.skip
 kb=args.kb
 tgefilt=args.valgefilt
 nfrestart=args.numframerest
@@ -952,12 +955,12 @@ if calc_force_eff:
   gradr=np.zeros((neffpoints,ndim))
   weightr=np.zeros((neffpoints)) 
   for k in range (0,ncolvars):
-     ntotpoints=len(colvarsarray[k][:,0][~colvarsarray[k][:,0].mask])
+     ntotpoints=len(colvarsarray[k][0:npoints[k]:skip,0][~colvarsarray[k][0:npoints[k]:skip,0].mask])
      arrayin=np.zeros((ntotpoints,ndim))
      gradvin=np.zeros((ntotpoints,ndim)) 
      for j in range (0,ndim):
-        arrayin[:,j]=colvarsarray[k][:,whichcv[j]+1][~colvarsarray[k][:,whichcv[j]+1].mask]
-        gradvin[:,j]=gradv[k][:,j][~gradv[k][:,j].mask]
+        arrayin[:,j]=colvarsarray[k][0:npoints[k]:skip,whichcv[j]+1][~colvarsarray[k][0:npoints[k]:skip,whichcv[j]+1].mask]
+        gradvin[:,j]=gradv[k][0:npoints[k]:skip,j][~gradv[k][0:npoints[k]:skip,j].mask]
      gradr, weightr=calc_vhar_force(neffpoints, ntotpoints, colvarseff, arrayin, gradvin) 
      weighttot=weighttot+weightr 
      for j in range(0,ndim):
