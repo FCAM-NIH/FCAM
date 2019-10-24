@@ -10,24 +10,16 @@ def parse():
     parser.add_argument("-if", "--inputfile", \
                         help="input file for analysis", \
                         type=str, required=True)
-    parser.add_argument("-temp", "--temp", help="Temperature (in Kelvin) for calculating the force constant (k) according to half bin width (k=4*kb*temp/(width*width)) ", \
+    parser.add_argument("-temp", "--temp", help="Temperature (default is in Kelvin)", \
                         default=-1.0,type=float, required=False)
     parser.add_argument("-skip", "--skip", help="skip points when calculating forces (default 1)", \
                         default=1,type=int, required=False)
-    parser.add_argument("-kb", "--kb", help="Boltzmann factor for calculating the force constant (k) and defining free energy units. Default is 0.00831... kJ/mol", \
+    parser.add_argument("-trfr", "--trajfraction", help="percentage fraction of the trajectory to be used for force calculation (default is 100)", \
+                        default=100.0,type=float, required=False)
+    parser.add_argument("-kb", "--kb", help="Boltzmann factor to define free energy units. Default is 0.00831... kJ/mol", \
                         default=0.00831446261815324,type=float, required=False)
-    parser.add_argument("-gefilt","--gaussianenergyfilter", \
-                        help="Filter data by comparing the calculated gaussian energy with the one reported in the COLVAR file according to -valgefilt", \
-                        default=False, dest='do_gefilt', action='store_true')
-    parser.add_argument("-colgener", "--colgener", help="Column to read the Gaussian energy in the COLVAR file for filtering (Default is the second last)", \
-                        default=-1,type=int, required=False)
-    parser.add_argument("-valgefilt", "--valgefilt", help="Difference threshold between calculated gaussian energy and the one reported in the COLVAR file for filtering ", \
-                        default=1000.0,type=float, required=False)
-    parser.add_argument("-nfr", "--numframerest", help="Number of frames to filter out before and after restart ", \
-                        default=-1,type=int, required=False)
-    parser.add_argument("-backres","--backrestart", \
-                        help="Filter out just data before a restart according to --numframerest", \
-                        default=False, dest='do_backres', action='store_true')
+    parser.add_argument("-wf", "--widthfactor", help="Scaling factor of the width (wfact) to assign the force constant (k=kb*temp*(wfact*wfact)/(width*width); default is 2 (width is read in the GRID defined in the input file)", \
+                        default=2.0,type=float, required=False)
     parser.add_argument("-nometaf","--nocalcmetabiasforce", \
                         help="Do not calculate bias forces of metadynamics Gaussian hills. By default metadynamics bias calculation is ON", \
                         default=True, dest='do_hbias', action='store_false')
@@ -70,6 +62,19 @@ def parse():
     parser.add_argument("-hlfl","--hillfreqlarge", \
                         help="Metadynamics in which HILLS are stored more frequently than COLVARS", \
                         default=False, dest='do_hlfl', action='store_true')
+    parser.add_argument("-gefilt","--gaussianenergyfilter", \
+                        help="Filter data by comparing the calculated gaussian energy with the one reported in the COLVAR file according to -valgefilt", \
+                        default=False, dest='do_gefilt', action='store_true')
+    parser.add_argument("-colgener", "--colgener", help="Column to read the Gaussian energy in the COLVAR file for filtering (Default is the second last)", \
+                        default=-1,type=int, required=False)
+    parser.add_argument("-valgefilt", "--valgefilt", help="Difference threshold between calculated gaussian energy and the one reported in the COLVAR file for filtering ", \
+                        default=1000.0,type=float, required=False)
+    parser.add_argument("-nfr", "--numframerest", help="Number of frames to filter out before and after restart ", \
+                        default=-1,type=int, required=False)
+    parser.add_argument("-backres","--backrestart", \
+                        help="Filter out just data before a restart according to --numframerest", \
+                        default=False, dest='do_backres', action='store_true')
+
     if len(sys.argv) == 1:
         parser.print_help()
         sys.exit(1)
@@ -102,10 +107,21 @@ force_bin_file=args.outbinforcefile
 temp=args.temp
 skip=args.skip
 kb=args.kb
+widthfact=args.widthfactor
 tgefilt=args.valgefilt
 nfrestart=args.numframerest
 colgener=args.colgener
 do_large_hfreq=args.do_hlfl
+trajfraction=args.trajfraction
+
+if trajfraction>100.0 or trajfraction<=0.0:
+  print ("ERROR: please select a trajectory fraction between 0 and 100")  
+  sys.exit()
+
+trajfraction=trajfraction/100.0
+
+if do_bin_eff_p_calc==False:
+  do_fast_eff_p_calc=False 
 
 calc_epoints=True # True unless is read from input
 calc_force_eff=True # True unless is read from input
@@ -139,7 +155,7 @@ for line in f:
          has_c=True
          ncfiles=ncfiles+1
     if ncfiles>1:
-      print ("ERROR, COLVAR_FILE must be specidied just one time on a single line") 
+      print ("ERROR, COLVAR_FILE must be specified just one time on a single line") 
       sys.exit()
     if has_c:
       if ncolvars==0:
@@ -151,7 +167,7 @@ for line in f:
              has_h=True 
              nhfiles=nhfiles+1
         if nhfiles>1:
-          print ("ERROR, HILLS_FILE must be specidied just one time on a single line")
+          print ("ERROR, HILLS_FILE must be specified just one time on a single line")
           sys.exit()
         if has_h:
           has_hills=[True]
@@ -164,7 +180,7 @@ for line in f:
                has_a=True
                nafields=nafields+1
           if has_a==False or nafields>1:
-            print ("ERROR, HILLS_CVS not specified or specidied more than once on a single line")
+            print ("ERROR, HILLS_CVS not specified or specified more than once on a single line")
             sys.exit()
           for i in range (la+1,nparts):
              if str(parts[i])=="COLVAR_FILE" or str(parts[i])=="HILLS_FILE":
@@ -576,7 +592,7 @@ def calc_vhar_force(numepoints, numpoints, effparray, colvars, gradbias):
         diffc=diffc/box[0:ndim]        
         diffc=diffc-np.rint(diffc)*periodic[0:ndim]
         diffc=diffc*box[0:ndim]
-      diffc=2.0*diffc/width[0:ndim]
+      diffc=widthfact*diffc/width[0:ndim]
       distance=0.5*np.sum(diffc[0:numpoints,:]*diffc[0:numpoints,:],axis=1)
       whichpoints=np.where(distance<wcutoff) 
       #whichpoints=np.array(whichpoints)
@@ -588,7 +604,7 @@ def calc_vhar_force(numepoints, numpoints, effparray, colvars, gradbias):
       #for j in range(0,ndim):
         #grade[i,j]=-np.average(2.0*kb*temp*diffc[whichpoints[:],j]/width[j]+gradbias[whichpoints[:],j],weights=weight[:]) 
       #grade[i,:]=-np.sum((2.0*kb*temp*diffc[0:numpoints,:]/width[:]+gradbias[0:numpoints,:])*weight[0:numpoints,np.newaxis],axis=0)
-        grade[i,:]=-np.sum((2.0*kb*temp*diffc[whichpoints[0][:],:]/width[:]+gradbias[whichpoints[0][:],:])*weight[:,np.newaxis],axis=0) 
+        grade[i,:]=-np.sum((widthfact*kb*temp*diffc[whichpoints[0][:],:]/width[:]+gradbias[whichpoints[0][:],:])*weight[:,np.newaxis],axis=0) 
         tweights[i]=np.sum(weight)
         if tweights[i]>0:
           grade[i,:]=grade[i,:]/tweights[i] 
@@ -955,12 +971,13 @@ if calc_force_eff:
   gradr=np.zeros((neffpoints,ndim))
   weightr=np.zeros((neffpoints)) 
   for k in range (0,ncolvars):
-     ntotpoints=len(colvarsarray[k][0:npoints[k]:skip,0][~colvarsarray[k][0:npoints[k]:skip,0].mask])
+     initframe=int(npoints[k]-trajfraction*npoints[k])
+     ntotpoints=len(colvarsarray[k][initframe:npoints[k]:skip,0][~colvarsarray[k][initframe:npoints[k]:skip,0].mask])
      arrayin=np.zeros((ntotpoints,ndim))
-     gradvin=np.zeros((ntotpoints,ndim)) 
+     gradvin=np.zeros((ntotpoints,ndim))
      for j in range (0,ndim):
-        arrayin[:,j]=colvarsarray[k][0:npoints[k]:skip,whichcv[j]+1][~colvarsarray[k][0:npoints[k]:skip,whichcv[j]+1].mask]
-        gradvin[:,j]=gradv[k][0:npoints[k]:skip,j][~gradv[k][0:npoints[k]:skip,j].mask]
+        arrayin[:,j]=colvarsarray[k][initframe:npoints[k]:skip,whichcv[j]+1][~colvarsarray[k][initframe:npoints[k]:skip,whichcv[j]+1].mask]
+        gradvin[:,j]=gradv[k][initframe:npoints[k]:skip,j][~gradv[k][initframe:npoints[k]:skip,j].mask]
      gradr, weightr=calc_vhar_force(neffpoints, ntotpoints, colvarseff, arrayin, gradvin) 
      weighttot=weighttot+weightr 
      for j in range(0,ndim):

@@ -7,39 +7,78 @@ from copy import deepcopy
 import time
 start_time = time.time()
 
+def parse():
+    parser = argparse.ArgumentParser()
+    parser.add_argument("-ff", "--forcefile", \
+                        help="file containing colvars, forces and weight of each point, weight can be different for each component", \
+                        type=str, required=True)
+    parser.add_argument("-temp", "--temp", help="Temperature (in Kelvin) of the kinetic motecarlo: larger temperature ensure assigning the population of high free energy regions", \
+                        default=298,type=float, required=False)
+    parser.add_argument("-kb", "--kb", help="Boltzmann factor for calculating the force constant (k) and defining free energy units. Default is 0.00831... kJ/mol", \
+                        default=0.00831446261815324,type=float, required=False)
+    parser.add_argument("-nsteps", "--numkmcsteps", help="number of kinetic montecarlo steps to calculate the free energy", \
+                        default=20000000,type=int, required=False)
+    parser.add_argument("-ofesf", "--outfesfile", \
+                        help="output file containing the free energy for each point", \
+                        default="fes.out",type=str, required=False)
+    parser.add_argument("-notnearest","--notnearest", \
+                        help="Do not consider only nearest neighbours", \
+                        default=True, dest='do_nearest', action='store_false')
+
+    if len(sys.argv) == 1:
+        parser.print_help()
+        sys.exit(1)
+    args = parser.parse_args()
+    return args
+
+args = parse()
+
+ifile=args.forcefile
+temp=args.temp
+kb=args.kb
+nsteps=args.numkmcsteps
+free_energy_file=args.outfesfile
+nearest=args.do_nearest
+
+with open(free_energy_file, 'w') as f:
+    f.write("# Colvars Free Energy \n")
+
 # read the grid with the gradients
-tmparray = np.loadtxt("force_on_bin_points.out")
+tmparray = np.loadtxt(ifile)
 npoints=len(tmparray)
-#ndim=int(len(tmparray[0])/2)
-ndim=2
-nearest=False
 # now read the header
-header=np.zeros((ndim,4))
 count=0
-f=open ("force_on_bin_points.out", 'r')
+f=open (ifile, 'r')
 for line in f:
-   count=count+1
-   if count>1: 
-     if count<=ndim+1:
-       parts=line.split()
-       header[count-2]=parts[1:]   
-   if count>ndim+1:
-     break
+   parts=line.split()
+   if len(parts)>0:
+     if str(parts[0])=="#":
+       count=count+1
+       if count==1:
+         ndim=int(parts[1])
+       if count==2:
+         lowbound=[float(parts[1])]
+         width=[float(parts[2])]
+         npointsv=[float(parts[3])]   
+         period=[float(parts[4])]
+       if count>2: 
+         if count<=ndim+1:
+           lowbound.append(float(parts[1]))
+           width.append(float(parts[2]))
+           npointsv.append(float(parts[3]))
+           period.append(float(parts[4]))
+       if count>ndim+1:
+         break
 
 # assign lowerboundary, width, number of points for each variable and periodicity 
 
 #with open("per_iteration_kmc_output.dat" , 'w') as f:
 #    f.write("# Iteration, colvar, etc. \n")
 
-lowbound=np.zeros((ndim))
-width=np.zeros((ndim))
-npointsv=np.zeros((ndim),dtype=np.int32)
-period=np.zeros((ndim),dtype=np.int8)
-
-lowbound=header[:,0]
-width=header[:,1]
-npointsv=header[:,2]
-periodic=header[:,3] 
+lowbound=np.array(lowbound)
+width=np.array(width)
+npointsv=np.array(npointsv)
+period=np.array(period)
 box=width*npointsv
 
 # now find number of neighbours (useful for high dimensional sparse grid)
@@ -48,28 +87,28 @@ if nearest:
   maxneigh=2*ndim
 else:
   maxneigh=np.power(3,ndim)-1
+
 nneigh=np.zeros((npoints),dtype=np.int32)
 neigh=np.ones((npoints,maxneigh),dtype=np.int32)
 ncol=np.ma.size(tmparray,axis=1)
-weights=np.zeros((npoints,ndim))
+weights=np.ones((npoints,ndim))
+
 if ncol>2*ndim+1:
   weights=tmparray[:,2*ndim:3*ndim]
 else:
-  for j in range(0,ndim):
-     weights[:,j]=tmparray[:,2*ndim]  
+  if ncol>2*ndim:
+    for j in range(0,ndim):
+       weights[:,j]=tmparray[:,2*ndim]  
 neigh=-neigh 
-nsteps=20000000
-temp=1298
-kb=0.00831
 prob=np.zeros((npoints,maxneigh))
 
-totperiodic=np.sum(periodic)
+totperiodic=np.sum(period)
 # assign neighbours and probabilities
 for i in range(0,npoints-1):
     diff=tmparray[i,0:ndim]-tmparray[i+1:npoints,0:ndim]
     if totperiodic>0:
       diff=diff/box
-      diff=diff-np.rint(diff)*periodic
+      diff=diff-np.rint(diff)*period
       diff=diff*box
     if nearest:
       dist=np.sum(np.abs(diff)/width,axis=1)
@@ -95,7 +134,7 @@ for i in range(0,npoints-1):
     nneigh[i]=nneigh[i]+len(whichneigh)
     nneigh[whichneigh[:]]=nneigh[whichneigh[:]]+1 
 
-print ("got the neighbours")
+print ("Got the neighbours")
 
 # now start to reconstruct the free energy
 # initialize the free energy to zero
@@ -107,7 +146,7 @@ for j in range(0,maxneigh):
 
 prob=np.where(freq>0,prob/freq,0.0)
 freq=freq[:,0]
-print ("probabilities calculated")
+print ("Transition probabilities calculated")
 
 # now run KMC
 
@@ -151,10 +190,18 @@ for nn in range(0,nsteps):
    #print timekmc,names[1:-1]
 
 maxpop=np.amax(pop)
-for nn in range(0,npoints):
-   if pop[nn]>0:
-     names=str(tmparray[nn,0:ndim])
-     print names[1:-1],-kb*temp*np.log(pop[nn]/maxpop)
+#for nn in range(0,npoints):
+#   if pop[nn]>0:
+#     names=str(tmparray[nn,0:ndim])
+#     print names[1:-1],-kb*temp*np.log(pop[nn]/maxpop)
+
+for nn in range (0,npoints):
+   with open(free_energy_file, 'a') as f:
+       if pop[nn]>0:
+         for j in range (0,ndim):
+            f.write("%s " % (tmparray[nn,j]))
+         f.write("%s \n" % (-kb*temp*np.log(pop[nn]/maxpop)))
+
 
 #   with open("per_iteration_kmc_output.dat", 'a') as f:
 #       np.savetxt(f, tmparray[state,0:ndim], newline='')
