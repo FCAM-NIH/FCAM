@@ -115,7 +115,7 @@ do_large_hfreq=args.do_hlfl
 trajfraction=args.trajfraction
 
 if trajfraction>100.0 or trajfraction<=0.0:
-  print ("ERROR: please select a trajectory fraction between 0 and 100")  
+  print ("ERROR: please select a trajectory fraction larger than 0 and below 100")  
   sys.exit()
 
 trajfraction=trajfraction/100.0
