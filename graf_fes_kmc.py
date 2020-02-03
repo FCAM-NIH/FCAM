@@ -578,11 +578,13 @@ if do_spath:
   is_end=False
   while is_end==False:
      tmp_max_lnp = 0.0
-     this_max = 0
+     this_max = -1
      init=True
      for i in range (0,ngrp):
         this = atnum[i]
         for j in range (0,nneigh[this]):
+           if logprobpath[this,j]==np.nan:
+             continue  
            this1 = neigh[this,j]
            if e_lnprob[this1]>1.5:
              this_lnprob = e_lnprob[this]+logprobpath[this,j]
