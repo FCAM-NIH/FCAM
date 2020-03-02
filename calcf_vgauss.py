@@ -32,6 +32,12 @@ def parse():
     parser.add_argument("-oeff", "--outeffforcefile", \
                         help="output file effective points and forces", \
                         default="force_on_eff_points.out",type=str, required=False)
+    parser.add_argument("-oeff1", "--outeffforcefile1", \
+                        help="output file effective points and forces using first half of the trajectory", \
+                        default="force_on_eff_points1.out",type=str, required=False)
+    parser.add_argument("-oeff2", "--outeffforcefile2", \
+                        help="output file effective points and forces using second half of the trajectory", \
+                        default="force_on_eff_points2.out",type=str, required=False)
     parser.add_argument("-ocmbeff", "--outcombeffforcefile", \
                         help="output combined file effective points and forces", \
                         default="force_on_eff_points_comb.out",type=str, required=False)
@@ -103,6 +109,8 @@ bias_grad_file=args.outbiasgradfile
 eff_points_file=args.outeffpointsfile
 force_points_file=args.outeffforcefile
 force_points_file_comb=args.outcombeffforcefile
+force_points_file1=args.outeffforcefile1
+force_points_file2=args.outeffforcefile2
 force_bin_file=args.outbinforcefile
 temp=args.temp
 skip=args.skip
@@ -131,6 +139,7 @@ ndim=0
 ngfiles=0
 nefiles=0
 nffiles=0
+nfcomp=0
 read_gfile=False
 read_efile=False
 read_ffile=False
@@ -303,7 +312,19 @@ for line in f:
         calc_epoints=False 
       if nffiles>0:
         ffile.append(str(parts[1]))
+      pluto=np.zeros((ndim),dtype=np.int8)
+      if nparts>2: 
+        if str(parts[2])=="REMOVE_COMP":
+          for i in range (3,nparts):
+             pluto[int(parts[i])-1]=1
+      if nffiles==0:
+        rcvcomp=[pluto]
+      if nffiles>0:
+        rcvcomp.append(pluto)  
       nffiles=nffiles+1
+
+#DEBUG
+#sys.exit()
 
 print ("Input read")
 if do_just_eff_points:
@@ -363,6 +384,20 @@ width=box/npointsv
 
 if calc_force_eff:
   with open(force_points_file, 'w') as f:
+      f.write("# %s \n" % ndim)
+      for j in range (0,ndim):
+         f.write("# %s " % lowbound[j])
+         f.write("  %s  " % (width[j]/2.0))
+         f.write("  %s  " % (2*npointsv[j]))
+         f.write("  %s  \n" % periodic[j])
+  with open(force_points_file1, 'w') as f:
+      f.write("# %s \n" % ndim)
+      for j in range (0,ndim):
+         f.write("# %s " % lowbound[j])
+         f.write("  %s  " % (width[j]/2.0))
+         f.write("  %s  " % (2*npointsv[j]))
+         f.write("  %s  \n" % periodic[j])
+  with open(force_points_file2, 'w') as f:
       f.write("# %s \n" % ndim)
       for j in range (0,ndim):
          f.write("# %s " % lowbound[j])
@@ -583,8 +618,12 @@ def fast_calc_eff_points(numepoints, effparray, npointsins):
 
 def calc_vhar_force(numepoints, numpoints, effparray, colvars, gradbias):
    grade=np.zeros((numepoints,ndim))
+   grade1=np.zeros((numepoints,ndim)) #for error calculation
+   grade2=np.zeros((numepoints,ndim)) #for error calculation
    diffc=np.zeros((numpoints,ndim))
    tweights=np.zeros((numepoints))
+   tweights1=np.zeros((numepoints))
+   tweights2=np.zeros((numepoints))
    totperiodic=np.sum(periodic[0:ndim]) 
    for i in range(0,numepoints):
       diffc=colvars[:,:]-effparray[i,:]
@@ -606,9 +645,20 @@ def calc_vhar_force(numepoints, numpoints, effparray, colvars, gradbias):
       #grade[i,:]=-np.sum((2.0*kb*temp*diffc[0:numpoints,:]/width[:]+gradbias[0:numpoints,:])*weight[0:numpoints,np.newaxis],axis=0)
         grade[i,:]=-np.sum((widthfact*kb*temp*diffc[whichpoints[0][:],:]/width[:]+gradbias[whichpoints[0][:],:])*weight[:,np.newaxis],axis=0) 
         tweights[i]=np.sum(weight)
+        # fragment frames in two portions to calculate the error 
+        weight1=np.where(np.cumsum(weight)<0.5*tweights[i],weight,0)
+        weight2=np.where(np.cumsum(weight)>=0.5*tweights[i],weight,0)
+        grade1[i,:]=-np.sum((widthfact*kb*temp*diffc[whichpoints[0][:],:]/width[:]+gradbias[whichpoints[0][:],:])*weight1[:,np.newaxis],axis=0) 
+        grade2[i,:]=-np.sum((widthfact*kb*temp*diffc[whichpoints[0][:],:]/width[:]+gradbias[whichpoints[0][:],:])*weight2[:,np.newaxis],axis=0)
+        tweights1[i]=np.sum(weight1)
+        tweights2[i]=np.sum(weight2)
         if tweights[i]>0:
           grade[i,:]=grade[i,:]/tweights[i] 
-   return grade,tweights
+        if tweights1[i]>0:
+          grade1[i,:]=grade1[i,:]/tweights1[i] 
+        if tweights2[i]>0:
+          grade2[i,:]=grade2[i,:]/tweights2[i]    
+   return grade,tweights,grade1,tweights1,grade2,tweights2
 
 # ROUTINE TO BIN THE DATA 
 
@@ -620,7 +670,7 @@ def bin_data(numepoints, effparray, weights, gradarray):
    gradbin=np.zeros((numepoints,ndim))
    diffbin=np.zeros(ndim)
    colvarbin=np.zeros(ndim)
-   weightbin=np.zeros((numepoints))
+   weightbin=np.zeros((numepoints,ndim))
    numinbin=np.zeros((numepoints),dtype=np.int64)
    #indexmax=np.argmax(weights)
    indexmax=0
@@ -653,11 +703,11 @@ def bin_data(numepoints, effparray, weights, gradarray):
         whichbin=nbins
         nbins=nbins+1
       numinbin[whichbin]=numinbin[whichbin]+1
-      gradbin[whichbin,:]=gradbin[whichbin,:]+gradarray[i,:]*weights[i]
+      gradbin[whichbin,0:ndim]=gradbin[whichbin,0:ndim]+gradarray[i,0:ndim]*weights[i,0:ndim]
       #gradbin[whichbin,:]=gradbin[whichbin,:]+gradarray[i,:]
-      weightbin[whichbin]=weightbin[whichbin]+weights[i]   
+      weightbin[whichbin,0:ndim]=weightbin[whichbin,0:ndim]+weights[i,0:ndim]   
    for j in range(0,ndim):
-      gradbin[0:nbins,j]=np.where(weightbin[0:nbins]>0,gradbin[0:nbins,j]/weightbin[0:nbins],0)
+      gradbin[0:nbins,j]=np.where(weightbin[0:nbins,j]>0,gradbin[0:nbins,j]/weightbin[0:nbins,j],0)
       #gradbin[0:nbins,j]=np.where(weightbin[0:nbins]>0,gradbin[0:nbins,j]/numinbin[0:nbins],0) 
    #weightbin[0:nbins]=np.where(numinbin[0:nbins]>0,weightbin[0:nbins]/numinbin[0:nbins],0)
    return colvarsbineff, gradbin, weightbin, nbins
@@ -685,15 +735,15 @@ def fast_bin_data(numepoints, effparray, weights, gradarray):
    effbinid=np.unique(binid,return_index=True,return_inverse=True,return_counts=True)
    neffp=effbinid[1].size
    gradbin=np.zeros((neffp,ndim))
-   weightbin=np.zeros((neffp))
+   weightbin=np.zeros((neffp,ndim))
    indexbin=np.argsort(effbinid[2][:])
    effcount=np.cumsum(effbinid[3])
    effindexbin=np.split(indexbin,effcount)
    for i in range (0,neffp):
-      gradbin[i,:]=np.sum(gradarray[effindexbin[i],:]*weights[effindexbin[i],np.newaxis],axis=0)
-      weightbin[i]=np.sum(weights[effindexbin[i]]) 
+      gradbin[i,:]=np.sum(gradarray[effindexbin[i],:]*weights[effindexbin[i],:],axis=0)
+      weightbin[i,:]=np.sum(weights[effindexbin[i],:],axis=0) 
    for j in range (0,ndim):
-      gradbin[:,j]=np.where(weightbin[:]>0,gradbin[:,j]/weightbin[:],0)
+      gradbin[:,j]=np.where(weightbin[:,j]>0,gradbin[:,j]/weightbin[:,j],0)
    colvarbin=0.5*mywidth+mywidth*bingrid[effbinid[1][:],:]+(lowbound+0.5*box)
    if totperiodic>0:
      colvarbin=(colvarbin-(lowbound+0.5*box))/box[0:ndim]
@@ -969,7 +1019,15 @@ if calc_force_eff:
   grad=np.zeros((neffpoints,ndim))
   weighttot=np.zeros((neffpoints))
   gradr=np.zeros((neffpoints,ndim))
-  weightr=np.zeros((neffpoints)) 
+  weightr=np.zeros((neffpoints))
+  grad1=np.zeros((neffpoints,ndim))
+  weighttot1=np.zeros((neffpoints))
+  gradr1=np.zeros((neffpoints,ndim))
+  weightr1=np.zeros((neffpoints))
+  grad2=np.zeros((neffpoints,ndim))
+  weighttot2=np.zeros((neffpoints))
+  gradr2=np.zeros((neffpoints,ndim))
+  weightr2=np.zeros((neffpoints)) 
   for k in range (0,ncolvars):
      initframe=int(npoints[k]-trajfraction*npoints[k])
      ntotpoints=len(colvarsarray[k][initframe:npoints[k]:skip,0][~colvarsarray[k][initframe:npoints[k]:skip,0].mask])
@@ -978,12 +1036,18 @@ if calc_force_eff:
      for j in range (0,ndim):
         arrayin[:,j]=colvarsarray[k][initframe:npoints[k]:skip,whichcv[j]+1][~colvarsarray[k][initframe:npoints[k]:skip,whichcv[j]+1].mask]
         gradvin[:,j]=gradv[k][initframe:npoints[k]:skip,j][~gradv[k][initframe:npoints[k]:skip,j].mask]
-     gradr, weightr=calc_vhar_force(neffpoints, ntotpoints, colvarseff, arrayin, gradvin) 
+     gradr, weightr, gradr1, weightr1, gradr2, weightr2=calc_vhar_force(neffpoints, ntotpoints, colvarseff, arrayin, gradvin) 
      weighttot=weighttot+weightr 
+     weighttot1=weighttot1+weightr1
+     weighttot2=weighttot2+weightr2
      for j in range(0,ndim):
         grad[0:neffpoints,j]=grad[0:neffpoints,j]+gradr[0:neffpoints,j]*weightr[0:neffpoints]
+        grad1[0:neffpoints,j]=grad1[0:neffpoints,j]+gradr1[0:neffpoints,j]*weightr1[0:neffpoints]
+        grad2[0:neffpoints,j]=grad2[0:neffpoints,j]+gradr2[0:neffpoints,j]*weightr2[0:neffpoints]
   for j in range(0,ndim):
      grad[0:neffpoints,j]=np.where(weighttot[0:neffpoints]>0,grad[0:neffpoints,j]/(weighttot[0:neffpoints]),0)
+     grad1[0:neffpoints,j]=np.where(weighttot1[0:neffpoints]>0,grad1[0:neffpoints,j]/(weighttot1[0:neffpoints]),0)
+     grad2[0:neffpoints,j]=np.where(weighttot2[0:neffpoints]>0,grad2[0:neffpoints,j]/(weighttot2[0:neffpoints]),0)
   for i in range(0,neffpoints):
      with open(force_points_file, 'a') as f:  
          #f.write("%s " % (i))
@@ -992,6 +1056,22 @@ if calc_force_eff:
          for j in range (0,ndim):
             f.write("%s " % (grad[i,j]))
          f.write("%s \n " % (weighttot[i]))
+  for i in range(0,neffpoints):
+     with open(force_points_file1, 'a') as f:
+         #f.write("%s " % (i))
+         for j in range (0,ndim):
+            f.write("%s " % (colvarseff[i,j]))
+         for j in range (0,ndim):
+            f.write("%s " % (grad1[i,j]))
+         f.write("%s \n " % (weighttot1[i]))
+  for i in range(0,neffpoints):
+     with open(force_points_file2, 'a') as f:
+         #f.write("%s " % (i))
+         for j in range (0,ndim):
+            f.write("%s " % (colvarseff[i,j]))
+         for j in range (0,ndim):
+            f.write("%s " % (grad2[i,j]))
+         f.write("%s \n " % (weighttot2[i]))
 
 # READ FORCE AND EFFECTIVE POINTS FROM EXTERNAL FILE
 
@@ -1004,15 +1084,27 @@ if read_ffile:
   for n in range(0,nffiles):
      try:
          tryarray = np.loadtxt(ffile[n])
+         weightr=np.zeros((len(tryarray),ndim))
+         ncol=np.ma.size(tryarray,axis=1)
          if n==0:
            colvarseff=tryarray[:,0:ndim]
            gradr=tryarray[:,ndim:2*ndim]
-           weightr=tryarray[:,2*ndim]
+           if ncol>2*ndim+1:
+             weightr=tryarray[:,2*ndim:3*ndim]
+           else:
+             if ncol>2*ndim:
+               for j in range(0,ndim):
+                  weightr[:,j]=tryarray[:,2*ndim]
+           #weightr=tryarray[:,2*ndim]
+           # REMOVE BIAS COMPONENTS IF REQUESTED 
+           for j in range(0,ndim):
+              if rcvcomp[n][j]==1:
+                weightr[:,j]=np.zeros((len(tryarray)))           
            neffpoints=len(colvarseff)
            weighttot=weightr
            grad=np.zeros((neffpoints,ndim)) 
            for j in range(0,ndim):
-              grad[0:neffpoints,j]=grad[0:neffpoints,j]+gradr[0:neffpoints,j]*weightr[0:neffpoints]
+              grad[0:neffpoints,j]=grad[0:neffpoints,j]+gradr[0:neffpoints,j]*weightr[0:neffpoints,j]
          else:
            if len(tryarray)!=neffpoints:
              print ("ERROR, please provide files with the same lenght")
@@ -1021,15 +1113,25 @@ if read_ffile:
            if distance>1:
              print ("ERROR, points where forces have been calculated are different")
              sys.exit()
-           weightr=tryarray[:,2*ndim]
+           if ncol>2*ndim+1:
+             weightr=tryarray[:,2*ndim:3*ndim]
+           else:
+             if ncol>2*ndim:
+               for j in range(0,ndim):
+                  weightr[:,j]=tryarray[:,2*ndim]   
+           #weightr=tryarray[:,2*ndim]
+           # REMOVE BIAS COMPONENTS IF REQUESTED 
+           for j in range(0,ndim):
+              if rcvcomp[n][j]==1:
+                weightr[:,j]=np.zeros((len(tryarray)))     
            weighttot=weighttot+weightr 
            gradr=tryarray[:,ndim:2*ndim]
            for j in range(0,ndim):
-              grad[0:neffpoints,j]=grad[0:neffpoints,j]+gradr[0:neffpoints,j]*weightr[0:neffpoints]
+              grad[0:neffpoints,j]=grad[0:neffpoints,j]+gradr[0:neffpoints,j]*weightr[0:neffpoints,j]
      except IOError:
          pass
   for j in range(0,ndim):
-     grad[0:neffpoints,j]=np.where(weighttot[0:neffpoints]>0,grad[0:neffpoints,j]/(weighttot[0:neffpoints]),0)
+     grad[0:neffpoints,j]=np.where(weighttot[0:neffpoints,j]>0,grad[0:neffpoints,j]/(weighttot[0:neffpoints,j]),0)
   for i in range(0,neffpoints):
      with open(force_points_file_comb, 'a') as f:
          #f.write("%s " % (i))
@@ -1037,17 +1139,27 @@ if read_ffile:
             f.write("%s " % (colvarseff[i,j]))
          for j in range (0,ndim):
             f.write("%s " % (grad[i,j]))
-         f.write("%s \n " % (weighttot[i]))
+         for j in range (0,ndim-1):
+            f.write("%s " % (weighttot[i,j])) 
+         f.write("%s \n " % (weighttot[i,ndim-1]))
 
 if do_bin_data:
   bincolvars=np.zeros((neffpoints,ndim))         
   bingrad=np.zeros((neffpoints,ndim))
+  totweight=np.zeros((neffpoints,ndim))
   binweight=np.zeros((neffpoints))
   binnumbers=0
-  if do_fast_bin_data: 
-    bincolvars, bingrad, binweight, binnumbers=fast_bin_data(neffpoints, colvarseff, weighttot, grad) 
+  ncol=np.ma.size(weighttot,axis=1)
+  if ncol>1:
+    totweight=weighttot 
   else:
-    bincolvars, bingrad, binweight, binnumbers=bin_data(neffpoints, colvarseff, weighttot, grad)
+    for j in range(0,ndim):
+       totweight[:,j]=weighttot[:]
+     
+  if do_fast_bin_data: 
+    bincolvars, bingrad, binweight, binnumbers=fast_bin_data(neffpoints, colvarseff, totweight, grad) 
+  else:
+    bincolvars, bingrad, binweight, binnumbers=bin_data(neffpoints, colvarseff, totweight, grad)
 
   for i in range(0,binnumbers):
      with open(force_bin_file, 'a') as f:
@@ -1055,7 +1167,9 @@ if do_bin_data:
             f.write("%s " % (bincolvars[i,j]))
          for j in range (0,ndim):
             f.write("%s " % (bingrad[i,j]))
-         f.write("%s \n " % (binweight[i]))
+         for j in range (0,ndim-1):
+            f.write("%s " % (binweight[i,j]))
+         f.write("%s \n " % (binweight[i,ndim-1]))
 
 print("--- %s seconds ---" % (time.time() - start_time)) 
 
