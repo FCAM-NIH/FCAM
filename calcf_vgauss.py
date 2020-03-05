@@ -390,6 +390,10 @@ if calc_epoints:
   with open(eff_points_file, 'w') as f:
       f.write("# numeff, colvar, npoints \n")
 
+if do_label:
+  with open(labelfile, 'w') as f:
+      f.write("# colvar, label, ntraj \n") 
+
 has_hills=np.array(has_hills)
 nactive=np.array(nactive)
 upbound=np.array(upbound)
@@ -1051,6 +1055,17 @@ if read_efile:
     else:
       colvarseff,neffpoints, numinpoint=calc_eff_points(nepoints, arrayin, numinpoint)
 
+# DEGUB check eff points
+
+#  with open("check_eff_points.dat", 'w') as f:
+#      for i in range (0,neffpoints):
+#         f.write("%s " % (i))
+#         for j in range (0,ndim):
+#            f.write("%s " % (colvarseff[i,j]))
+#         f.write("%s \n" % (numinpoint[i]))
+
+# DEBUG  
+
 # CALC FORCE ON EFFECTIVE POINTS
 
 if calc_force_eff:
@@ -1120,10 +1135,28 @@ if do_label:
      binlabel=np.zeros((npoints[k]),dtype=np.int64)
      for j in range (0,ndim):
         arrayin[:,j]=colvarsarray[k][:,whichcv[j]+1]
+
+# DEGUB check eff points
+
+#     with open("colvar_check.dat", 'w') as f:
+#         for i in range (0,npoints[k]):
+#            for j in range (0,ndim-1):
+#               f.write("%s " % (arrayin[i,j]))
+#            f.write("%s \n" % (arrayin[i,ndim-1]))
+
+# DEBUG  
+
      binlabel=assign_bins(npoints[k], arrayin, neffpoints, colvarseff)
-     with open(labelfile, 'w') as f:
+     with open(labelfile, 'a') as f:
          for i in range(0,npoints[k]):
-            f.write("%s %s \n " % (binlabel[i],k))
+            if binlabel[i]!=-999:
+              for j in range (0,ndim): 
+                 f.write("%s " % (colvarseff[binlabel[i],j])) 
+              f.write("%s %s \n " % (binlabel[i],k))
+            else:
+              for j in range (0,ndim):
+                 f.write("%s " % (-999))
+              f.write("%s %s \n " % (binlabel[i],k))
 
 # READ FORCE AND EFFECTIVE POINTS FROM EXTERNAL FILE
 
