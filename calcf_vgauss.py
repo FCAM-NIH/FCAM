@@ -23,6 +23,9 @@ def parse():
     parser.add_argument("-nometaf","--nocalcmetabiasforce", \
                         help="Do not calculate bias forces of metadynamics Gaussian hills. By default metadynamics bias calculation is ON", \
                         default=True, dest='do_hbias', action='store_false')
+    parser.add_argument("-noforce","--nocalcforce", \
+                        help="Do not calculate forces. By default forces calculation is ON", \
+                        default=True, dest='do_force', action='store_false')
     parser.add_argument("-obgf", "--outbiasgradfile", \
                         help="output file of bias gradients for each frame", \
                         default="bias_grad.out",type=str, required=False)
@@ -44,6 +47,9 @@ def parse():
     parser.add_argument("-obff", "--outbinforcefile", \
                         help="output file of binned colvar and forces", \
                         default="force_on_bin_points.out",type=str, required=False)
+    parser.add_argument("-olf", "--outlabelfile", \
+                        help="output file of labels (assigned bins along colvar) ", \
+                        default="label.out",type=str, required=False)
     parser.add_argument("-nobdat","--nobindata", \
                         help="Do not bin data according to provided grid", \
                         default=True, dest='do_bdat', action='store_false')
@@ -65,6 +71,9 @@ def parse():
     parser.add_argument("-jcmetab","--justcalcmetabias", \
                         help="Calculate metadynamics bias potential and do nothing else. COLVARS, HILLS and GRID data must at least be provided", \
                         default=False, dest='do_jmetab', action='store_true')
+    parser.add_argument("-label","--label", \
+                        help="label COLVARS according to the effective foints", \
+                        default=False, dest='do_label', action='store_true')
     parser.add_argument("-hlfl","--hillfreqlarge", \
                         help="Metadynamics in which HILLS are stored more frequently than COLVARS", \
                         default=False, dest='do_hlfl', action='store_true')
@@ -97,6 +106,9 @@ wcutoff=6.25 # cutoff for Gaussians in weight calculation
 ifile=args.inputfile
 do_hills_bias=args.do_hbias
 do_bin_data=args.do_bdat
+do_bin_data=args.do_bdat
+do_label=args.do_label
+do_force=args.do_force
 do_boundaries=args.do_bound
 do_gefilter=args.do_gefilt
 do_just_eff_points=args.do_jceffp
@@ -106,6 +118,7 @@ do_bin_eff_p_calc=args.do_effpb
 do_fast_bin_data=args.do_fbind
 do_backrestart=args.do_backres
 bias_grad_file=args.outbiasgradfile
+labelfile=args.outlabelfile
 eff_points_file=args.outeffpointsfile
 force_points_file=args.outeffforcefile
 force_points_file_comb=args.outcombeffforcefile
@@ -348,6 +361,10 @@ if do_just_hills_bias:
 if ncolvars==0:
   calc_epoints=False  
   calc_force_eff=False
+
+if do_force==False:
+  calc_force_eff=False  
+
 
 if ndim==0:
   print ("ERROR: number of variables is zero, please provide some to continue")
@@ -613,6 +630,28 @@ def fast_calc_eff_points(numepoints, effparray, npointsins):
      colvarbin=colvarbin-np.rint(colvarbin)*periodic[0:ndim]
      colvarbin=colvarbin*box[0:ndim]+(lowbound+0.5*box)     
    return colvarbin[0:neffp,0:ndim], neffp, numinpoints[0:neffp]  
+
+# DO LABELS: ASSIGN BIN ALONG A COLVAR FILE
+
+def assign_bins(numpoints, colvars, numepoints, effparray):
+   mywidth=width/2.0
+   diffc=np.zeros((numepoints,ndim))
+   totperiodic=np.sum(periodic[0:ndim])
+   labelbin=np.zeros((numpoints),dtype=np.int64)
+   for i in range(0,numpoints):
+      diffc[:,:]=colvars[i,:]-effparray[:,:]
+      if totperiodic>0: 
+        diffc=diffc/box[0:ndim]
+        diffc=diffc-np.rint(diffc)*periodic[0:ndim]
+        diffc=diffc*box[0:ndim]
+      diffc=diffc/mywidth[0:ndim]
+      distance=np.amax(np.abs(diffc),axis=1)
+      labelbin[i]=np.argmin(distance)
+      mindistance=distance[labelbin[i]]
+      if mindistance>0.5:
+        labelbin[i]=-999
+   return labelbin
+
 
 #ROUTINE TO CALCULATE THE FORCE ON A SET OF POINTS
 
@@ -1072,6 +1111,19 @@ if calc_force_eff:
          for j in range (0,ndim):
             f.write("%s " % (grad2[i,j]))
          f.write("%s \n " % (weighttot2[i]))
+
+# CALC LABELS
+
+if do_label:
+  for k in range (0,ncolvars):
+     arrayin=np.zeros((npoints[k],ndim)) 
+     binlabel=np.zeros((npoints[k]),dtype=np.int64)
+     for j in range (0,ndim):
+        arrayin[:,j]=colvarsarray[k][:,whichcv[j]+1]
+     binlabel=assign_bins(npoints[k], arrayin, neffpoints, colvarseff)
+     with open(labelfile, 'w') as f:
+         for i in range(0,npoints[k]):
+            f.write("%s %s \n " % (binlabel[i],k))
 
 # READ FORCE AND EFFECTIVE POINTS FROM EXTERNAL FILE
 
