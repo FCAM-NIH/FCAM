@@ -4,6 +4,7 @@ import numpy as np
 import argparse, os, sys
 from glob import glob
 from copy import deepcopy
+from numba import jit
 import time
 start_time = time.time()
 
@@ -12,9 +13,6 @@ def parse():
     parser.add_argument("-noforces","--nouseforces", \
                         help="do not use forces to run kmc but use free energy (read externally) instead ", \
                         default=True, dest='use_forces', action='store_false')
-    parser.add_argument("-usenpkn","--usenpkmcneigh", \
-                        help="use numpy functions instead of loop over neighbours in kmc, the latter seems faster for a few neighbours ", \
-                        default=False, dest='use_np', action='store_true')
     parser.add_argument("-ff", "--forcefile", \
                         help="file containing colvars, forces and weight of each point, weight can be different for each component", \
                         type=str, required=False)
@@ -86,7 +84,6 @@ def parse():
 args = parse()
 
 use_forces=args.use_forces
-use_np=args.use_np
 ifile=args.forcefile
 temp=args.temp
 mctemp=args.mctemp
@@ -206,8 +203,6 @@ else:
   maxneigh=np.power(3,ndim)-1
 
 mctemp=mctemp*maxneigh
-nneigh=np.zeros((npoints),dtype=np.int32)
-neigh=np.ones((npoints,maxneigh),dtype=np.int32)
 
 if use_forces:
   tmparray=forcearray 
@@ -223,50 +218,101 @@ if use_forces:
 else:
   tmparray=fesarray
 
-neigh=-neigh 
+totperiodic=np.sum(period)
+# assign neighbours and probabilities
+
+@jit(nopython=True)
+def calc_neighs_fast(numpoints):
+   nneighb=np.zeros((numpoints),dtype=np.int32)
+   neighb=np.ones((numpoints,maxneigh),dtype=np.int32)
+   neighb=-neighb
+   for i in range(0,numpoints-1):
+       diff=tmparray[i,0:ndim]-tmparray[i+1:numpoints,0:ndim]
+       if totperiodic>0:
+         diff=diff/box
+         diff=diff-np.rint(diff)*period
+         diff=diff*box
+       if nearest:
+         dist=np.sum(np.abs(diff)/width,axis=1)
+         neighs=np.where(np.rint(dist)==1)
+       else:
+         absdist=np.abs(diff)/width
+         maxdist=absdist[:,0]
+         for j in range(0,len(absdist[:,0])):
+            maxdist[j]=np.amax(absdist[j,:])
+         neighs=np.where(np.rint(maxdist)==1)
+       whichneigh=neighs[0]+i+1
+       neighb[i,nneighb[i]:nneighb[i]+len(whichneigh)]=whichneigh[0:len(whichneigh)]   
+       for j in range(0,len(whichneigh)): 
+          neighb[whichneigh[j],nneighb[whichneigh[j]]]=i
+       nneighb[i]=nneighb[i]+len(whichneigh)
+       for j in range(0,len(whichneigh)): 
+          nneighb[whichneigh[j]]=nneighb[whichneigh[j]]+1 
+   return nneighb,neighb
+
+@jit(nopython=True)
+def run_kmc(numsteps,numpoints,startstate):
+
+   state=startstate 
+   timekmc=0
+   itt=0
+   #names=str(tmparray[state,0:ndim])
+   popu=np.zeros((numpoints))
+
+   for nn in range(0,numsteps):
+      thisp=0
+      state_old=state
+      popu[state]=popu[state]+(1/freq[state])
+      rand=np.random.rand()
+  
+  
+      #  thisp=np.cumsum(prob[state,0:nneigh[state]])
+      #  states=np.where(thisp > rand)
+      #  state=neigh[state,states[0][0]]
+      #  timekmc=timekmc-np.log(rand)/freq[state]
+  
+      # apparently is faster to have an explicit loop
+  
+      #else:
+      for j in range(0,nneigh[state]):
+         thisp=thisp+prob[state,j]
+         if thisp > rand:
+           rand=np.random.rand()
+           timekmc=timekmc-np.log(rand)/freq[state]
+           state=neigh[state,j]
+           break
+   return popu   
+
+nneigh,neigh=calc_neighs_fast(npoints)
+print ("Got the neighbours")
+
 prob=np.zeros((npoints,maxneigh))
 logprobpath=np.zeros((npoints,maxneigh))
 
-totperiodic=np.sum(period)
-# assign neighbours and probabilities
-for i in range(0,npoints-1):
-    diff=tmparray[i,0:ndim]-tmparray[i+1:npoints,0:ndim]
+for i in range(0,npoints):
+    diff=tmparray[i,0:ndim]-tmparray[neigh[i,0:nneigh[i]],0:ndim]
     if totperiodic>0:
       diff=diff/box
       diff=diff-np.rint(diff)*period
       diff=diff*box
-    if nearest:
-      dist=np.sum(np.abs(diff)/width,axis=1)
-      neighs=np.where(np.rint(dist)==1)
-    else:
-      absdist=np.abs(diff)/width
-      maxdist=np.amax(absdist,axis=1)
-      neighs=np.where(np.rint(maxdist)==1)
-    whichneigh=neighs[0]+i+1
-    neigh[i,nneigh[i]:nneigh[i]+len(whichneigh)]=whichneigh[:]    
-    diffdist=diff[neighs[0],0:ndim]
     if use_forces:
-      avergrad=tmparray[whichneigh,ndim:2*ndim]*weights[whichneigh,0:ndim]+tmparray[i,ndim:2*ndim]*weights[i,0:ndim]
-      weighttot=weights[whichneigh,0:ndim]+weights[i,0:ndim]
+      avergrad=tmparray[neigh[i,0:nneigh[i]],ndim:2*ndim]*weights[neigh[i,0:nneigh[i]],0:ndim]+tmparray[i,ndim:2*ndim]*weights[i,0:ndim]
+      weighttot=weights[neigh[i,0:nneigh[i]],0:ndim]+weights[i,0:ndim]
       avergrad=np.where(weighttot>0,avergrad/weighttot,0)
-      pippo=np.where(diffdist>0,1,0)
+      pippo=np.where(diff>0,1,0)
       pippo2=np.where(weighttot==0,1,0)
       pippo3=np.where(pippo*pippo2==1,0,1)
       valid=np.amin(pippo3,axis=1)
-      energydiff=np.sum(avergrad*diffdist,axis=1)
-    else:
-      energydiff=tmparray[i,ndim]-tmparray[whichneigh,ndim]
+      energydiff=np.sum(avergrad*diff,axis=1)
+    else:       
+      energydiff=tmparray[i,ndim]-tmparray[neigh[i,0:nneigh[i]],ndim]
       valid=np.where(np.isnan(energydiff),0,1)
     if do_mfepath or do_spath:
-      logprobpath[i,nneigh[i]:nneigh[i]+len(whichneigh)]=np.where(valid>0,energydiff/(2*kb*pathtemp),np.nan)
-      logprobpath[whichneigh[:],nneigh[whichneigh[:]]]=np.where(valid>0,-energydiff/(2*kb*pathtemp),np.nan) 
-    prob[i,nneigh[i]:nneigh[i]+len(whichneigh)]=np.where(valid>0,np.exp(energydiff/(2*kb*temp)),0.0)
-    neigh[whichneigh[:],nneigh[whichneigh[:]]]=i
-    prob[whichneigh[:],nneigh[whichneigh[:]]]=np.where(valid>0,np.exp(-energydiff/(2*kb*temp)),0.0)
-    nneigh[i]=nneigh[i]+len(whichneigh)
-    nneigh[whichneigh[:]]=nneigh[whichneigh[:]]+1 
+      logprobpath[i,0:nneigh[i]]=np.where(valid>0,energydiff/(2*kb*pathtemp),np.nan) 
+    prob[i,0:nneigh[i]]=np.where(valid>0,np.exp(energydiff/(2*kb*temp)),0.0)
 
-print ("Got the neighbours")
+#print("--- %s seconds ---" % (time.time() - start_time))
+#sys.exit()
 
 # now start to reconstruct the free energy
 # initialize the free energy to zero
@@ -316,43 +362,12 @@ if do_fes:
 
   if use_forces:  
     minweights=np.amin(weights,axis=1)
-    state=np.argmax(minweights)
+    initstate=np.argmax(minweights)
   else:
-    state=np.argmin(fesarray[:,ndim])
+    initstate=np.argmin(fesarray[:,ndim])
+
+  pop=run_kmc(nsteps,npoints,initstate)  
     
-  timekmc=0
-  itt=0
-  #names=str(tmparray[state,0:ndim])
-  pop=np.zeros((npoints))
-  #print timekmc,names[1:-1]
-
-  for nn in range(0,nsteps):
-     thisp=0
-     state_old=state
-     pop[state]=pop[state]+(1/freq[state])
-     rand=np.random.rand()
-
-     if use_np:
-   
-       thisp=np.cumsum(prob[state,0:nneigh[state]])
-       states=np.where(thisp > rand)
-       state=neigh[state,states[0][0]]
-       timekmc=timekmc-np.log(rand)/freq[state]
-   
-     # apparently is faster to have an explicit loop
-    
-     else:
-       for j in range(0,nneigh[state]): 
-          thisp=thisp+prob[state,j]
-          if thisp > rand:
-            rand=np.random.rand() 
-            timekmc=timekmc-np.log(rand)/freq[state]
-            state=neigh[state,j]
-            break
-   
-     #names=str(tmparray[state,0:ndim])
-     #print timekmc,names[1:-1]
-
   maxpop=np.amax(pop)
 #for nn in range(0,npoints):
 #   if pop[nn]>0:
