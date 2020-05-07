@@ -654,6 +654,8 @@ def assign_bins(numpoints, colvars, numepoints, effparray):
       mindistance=distance[labelbin[i]]
       if mindistance>0.5:
         labelbin[i]=-999
+      if np.isnan(mindistance):
+        labelbin[i]=-999
    return labelbin
 
 
@@ -1047,13 +1049,17 @@ if read_efile:
   arrayin=np.zeros((nepoints,ndim))
   arrayin[0:nepoints,0:ndim]=colvareffarray[0:nepoints:,1:ndim+1]
   numinpoint=colvareffarray[0:nepoints:,ndim+1]
-  if do_fast_eff_p_calc:
-    colvarseff,neffpoints, numinpoint=fast_calc_eff_points(nepoints, arrayin, numinpoint) 
-  else:
-    if do_bin_eff_p_calc:
-      colvarseff,neffpoints, numinpoint=calc_eff_points_bin(nepoints, arrayin, numinpoint) 
+  if do_label:
+    neffpoints=nepoints
+    colvarseff=arrayin
+  else:  
+    if do_fast_eff_p_calc:
+      colvarseff,neffpoints, numinpoint=fast_calc_eff_points(nepoints, arrayin, numinpoint) 
     else:
-      colvarseff,neffpoints, numinpoint=calc_eff_points(nepoints, arrayin, numinpoint)
+      if do_bin_eff_p_calc:
+        colvarseff,neffpoints, numinpoint=calc_eff_points_bin(nepoints, arrayin, numinpoint) 
+      else:
+        colvarseff,neffpoints, numinpoint=calc_eff_points(nepoints, arrayin, numinpoint)
 
 # DEGUB check eff points
 
@@ -1150,9 +1156,14 @@ if do_label:
      with open(labelfile, 'a') as f:
          for i in range(0,npoints[k]):
             if binlabel[i]!=-999:
-              for j in range (0,ndim): 
-                 f.write("%s " % (colvarseff[binlabel[i],j])) 
-              f.write("%s %s \n " % (binlabel[i],k))
+              if np.ma.is_masked(colvarsarray[k][i,0]):
+                for j in range (0,ndim):
+                   f.write("%s " % (-999))
+                f.write("%s %s \n " % (-999,k))
+              else:
+                for j in range (0,ndim): 
+                   f.write("%s " % (colvarseff[binlabel[i],j])) 
+                f.write("%s %s \n " % (binlabel[i],k))
             else:
               for j in range (0,ndim):
                  f.write("%s " % (-999))
