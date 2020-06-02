@@ -14,8 +14,11 @@ def parse():
                         default=-1.0,type=float, required=False)
     parser.add_argument("-skip", "--skip", help="skip points when calculating forces (default 1)", \
                         default=1,type=int, required=False)
-    parser.add_argument("-trfr", "--trajfraction", help="percentage fraction of the trajectory to be used for force calculation (default is 100)", \
-                        default=100.0,type=float, required=False)
+    parser.add_argument("-trfr1", "--trajfraction1", help="starting frame fraction of the trajectory (range 0-1) to be used for force calculation (default is 0)", \
+                        default=0.0,type=float, required=False)
+    parser.add_argument("-trfr2", "--trajfraction2", help="last frame fraction of the trajectory (range 0-1) to be used for force calculation (default is 1)", \
+                        default=1.0,type=float, required=False)
+
     parser.add_argument("-kb", "--kb", help="Boltzmann factor to define free energy units. Default is 0.00831... kJ/mol", \
                         default=0.00831446261815324,type=float, required=False)
     parser.add_argument("-wf", "--widthfactor", help="Scaling factor of the width (wfact) to assign the force constant (k=kb*temp*(wfact*wfact)/(width*width); default is 2 (width is read in the GRID defined in the input file)", \
@@ -133,13 +136,21 @@ tgefilt=args.valgefilt
 nfrestart=args.numframerest
 colgener=args.colgener
 do_large_hfreq=args.do_hlfl
-trajfraction=args.trajfraction
+trajfraction1=args.trajfraction1
+trajfraction2=args.trajfraction2
 
-if trajfraction>100.0 or trajfraction<=0.0:
-  print ("ERROR: please select a trajectory fraction larger than 0 and below 100")  
+if trajfraction1>=1.0 or trajfraction1<0.0:
+  print ("ERROR: please select a trajectory starting point between 0 and 1")  
   sys.exit()
 
-trajfraction=trajfraction/100.0
+
+if trajfraction2>1.0 or trajfraction2<=0.0:
+  print ("ERROR: please select a trajectory last point between 0 and 1")   
+  sys.exit()
+
+if trajfraction2<=trajfraction1:
+  print ("ERROR: last point of the trajectory to be used must be larger than the first")
+  sys.exit()  
 
 if do_bin_eff_p_calc==False:
   do_fast_eff_p_calc=False 
@@ -1089,13 +1100,14 @@ if calc_force_eff:
   gradr2=np.zeros((neffpoints,ndim))
   weightr2=np.zeros((neffpoints)) 
   for k in range (0,ncolvars):
-     initframe=int(npoints[k]-trajfraction*npoints[k])
-     ntotpoints=len(colvarsarray[k][initframe:npoints[k]:skip,0][~colvarsarray[k][initframe:npoints[k]:skip,0].mask])
+     initframe=int(trajfraction1*npoints[k])
+     lastframe=int(trajfraction2*npoints[k])
+     ntotpoints=len(colvarsarray[k][initframe:lastframe:skip,0][~colvarsarray[k][initframe:lastframe:skip,0].mask])
      arrayin=np.zeros((ntotpoints,ndim))
      gradvin=np.zeros((ntotpoints,ndim))
      for j in range (0,ndim):
-        arrayin[:,j]=colvarsarray[k][initframe:npoints[k]:skip,whichcv[j]+1][~colvarsarray[k][initframe:npoints[k]:skip,whichcv[j]+1].mask]
-        gradvin[:,j]=gradv[k][initframe:npoints[k]:skip,j][~gradv[k][initframe:npoints[k]:skip,j].mask]
+        arrayin[:,j]=colvarsarray[k][initframe:lastframe:skip,whichcv[j]+1][~colvarsarray[k][initframe:lastframe:skip,whichcv[j]+1].mask]
+        gradvin[:,j]=gradv[k][initframe:lastframe:skip,j][~gradv[k][initframe:lastframe:skip,j].mask]
      gradr, weightr, gradr1, weightr1, gradr2, weightr2=calc_vhar_force(neffpoints, ntotpoints, colvarseff, arrayin, gradvin) 
      weighttot=weighttot+weightr 
      weighttot1=weighttot1+weightr1
