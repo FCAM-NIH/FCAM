@@ -481,7 +481,7 @@ if read_neighs:
   print ("Neighbours checked and eventually corrected")
 
 # remove bad neighbours
-if use_forces:
+if use_forces and wethreshold<0:
 
   neigh2=neigh
   nneigh2=nneigh
