@@ -13,6 +13,14 @@ def parse():
     parser.add_argument("-noforces","--nouseforces", \
                         help="do not use forces to run kmc but use free energy (read externally) instead ", \
                         default=True, dest='use_forces', action='store_false')
+    parser.add_argument("-kcont","--dokineticcontacts", \
+                        help="Calculate neighbours from inter-bin transitions evaluated on a continous trajectory with bin-labels", \
+                        default=False, dest='do_kcont', action='store_true')
+    parser.add_argument("-labelsf", "--labelsfile", \
+                        help="input file containing time, colvars and bin-label across a continuous trajectory", \
+			default="labels.out",type=str, required=False)
+    parser.add_argument("-minbintrans", "--minnumbintransitions", help="Minimum number of transitions between two bins to be considered neighbors", \
+                        default=0,type=int, required=False)
     parser.add_argument("-rneighs","--readneighs", \
                         help="read neighbours from file ", \
                         default=False, dest='read_neighs', action='store_true')
@@ -34,6 +42,10 @@ def parse():
                         default=0.00831446261815324,type=float, required=False)
     parser.add_argument("-nsteps", "--numkmcsteps", help="number of kinetic montecarlo steps to calculate the free energy", \
                         default=20000000,type=int, required=False)
+    parser.add_argument("-weth", "--wethreshold", help="Minimum value of the smallest weight for a state to be considered ", \
+                        default=-1.0,type=float, required=False)
+    parser.add_argument("-maxfes", "--maxfes", help="Discard states having free energy larger than maxfes", \
+                        default=-1.0,type=float, required=False)
     parser.add_argument("-dexp", "--distexp", help="exponent to weight the distances in the transition probability (1/(d^dexp))", \
                         default=2.0,type=float, required=False)
     parser.add_argument("-ofesf", "--outfesfile", \
@@ -104,6 +116,9 @@ args = parse()
 
 use_forces=args.use_forces
 print_neighs=args.print_neighs
+do_kinetic_cont=args.do_kcont
+labelsfile=args.labelsfile
+mintrans=args.minnumbintransitions
 read_neighs=args.read_neighs
 neighs_input_file=args.inneighfile
 ifile=args.forcefile
@@ -112,6 +127,8 @@ mctemp=args.mctemp
 kb=args.kb
 nsteps=args.numkmcsteps
 dexp=args.distexp
+wethreshold=args.wethreshold
+maxfes=args.maxfes
 free_energy_file=args.outfesfile
 neighs_file=args.outneighfile
 nearest=args.do_nearest
@@ -153,6 +170,11 @@ if use_forces==False:
 if use_forces:
   forcearray = np.loadtxt(ifile)
   npoints=len(forcearray)
+
+if do_kinetic_cont and calc_neighs:
+  print ("reading labels file")
+  labelsarray = np.loadtxt(labelsfile) 
+  labelspoints = len(labelsarray)
 
 if read_fes:
   #do_fes=False
@@ -232,14 +254,16 @@ if print_neighs:
   with open(neighs_file, 'w') as f:
       f.write("# bin, nneighs, neighs \n")
 
-# now find number of neighbours (useful for high dimensional sparse grid)
-
 if nearest:
   maxneigh=2*ndim
 elif do_cutoff:
   maxneigh=int(npoints/2)
 else:
   maxneigh=np.power(3,ndim)-1
+
+if do_kinetic_cont:
+  maxneigh=np.power(3,ndim)-1
+
 
 mctemp=mctemp*maxneigh
 
@@ -260,12 +284,31 @@ else:
 totperiodic=np.sum(period)
 # assign neighbours and probabilities
 
+# set valid states
+
+if use_forces:
+  minweight=np.amin(weights,axis=1)
+  validstates=np.where(minweight>wethreshold)
+  stateisvalid=np.where(minweight>wethreshold,1,0)
+
+if read_fes:
+  if maxfes>0:
+    validstates=np.where(fesarray[:,ndim]<=maxfes)
+    stateisvalid=np.where(fesarray[:,ndim]<=maxfes,1,0)
+  else
+    validstates=np.where(np.isfinite(fesarray[:,ndim]))
+    stateisvalid=np.where(np.isfinite(fesarray[:,ndim]),1,0)
+
 def calc_neighs_fast(numpoints):
    nneighb=np.zeros((numpoints),dtype=np.int32)
    neighb=np.ones((numpoints,maxneigh),dtype=np.int32)
    neighb=-neighb
-   for i in range(0,numpoints-1):
-       diff=tmparray[i,0:ndim]-tmparray[i+1:numpoints,0:ndim]
+
+   totpoints=len(validstates[0])   
+   thisarray=tmparray[validstates[0],0:ndim]
+   
+   for i in range(0,totpoints-1):
+       diff=thisarray[i,0:ndim]-thisarray[i+1:totpoints,0:ndim]
        if totperiodic>0:
          diff=diff/box
          diff=diff-np.rint(diff)*period
@@ -281,10 +324,88 @@ def calc_neighs_fast(numpoints):
          else: 
            neighs=np.where(np.rint(maxdist)==1)
        whichneigh=neighs[0]+i+1
-       neighb[i,nneighb[i]:nneighb[i]+len(whichneigh)]=whichneigh[0:len(whichneigh)]  
-       neighb[whichneigh[:],nneighb[whichneigh[:]]]=i 
-       nneighb[i]=nneighb[i]+len(whichneigh)
-       nneighb[whichneigh[:]]=nneighb[whichneigh[:]]+1 
+       j=validstates[0][i]
+       neighb[j,nneighb[j]:nneighb[j]+len(whichneigh)]=validstates[0][whichneigh[0:len(whichneigh)]]  
+       neighb[validstates[0][whichneigh[:]],nneighb[validstates[0][whichneigh[:]]]]=j 
+       nneighb[j]=nneighb[j]+len(whichneigh)
+       nneighb[validstates[0][whichneigh[:]]]=nneighb[validstates[0][whichneigh[:]]]+1 
+   return nneighb,neighb
+
+def calc_neighs_kcont(numpoints,mintransitions):
+   nneighb=np.zeros((numpoints),dtype=np.int32)
+   neighb=np.ones((numpoints,maxneigh),dtype=np.int32)
+   numtrans=np.zeros((numpoints,maxneigh),dtype=np.int32) 
+   #distancen=np.zeros((numpoints,maxneigh))
+   neighb=-neighb
+   ncoll=np.ma.size(labelsarray,axis=1)
+   for i in range(0,labelspoints-1):
+      if labelsarray[i+1,0]>=0 and labelsarray[i,0]>=0:
+        step=labelsarray[i+1,0]-labelsarray[i,0]
+        break
+   if step<0:
+    print ("ERROR: negative step in labels file")
+    sys.exit()
+
+   for i in range(0,labelspoints-1):
+      time1=labelsarray[i,0]
+      time2=labelsarray[i+1,0]
+      bin1=int(labelsarray[i,ncoll-2])
+      bin2=int(labelsarray[i+1,ncoll-2])
+      if bin1>0 and bin2>0 and bin1!=bin2 and stateisvalid[bin1] and stateisvalid[bin2]:
+        if time2-time1>0.1*step and time2-time1<1.1*step:
+           diff=labelsarray[i,1:ndim+1]-labelsarray[i+1,1:ndim+1]
+           if totperiodic>0:
+             diff=diff/box
+             diff=diff-np.rint(diff)*period
+             diff=diff*box
+           absdist=np.abs(diff)/width
+           maxdist=np.amax(absdist)
+           if nneighb[bin1]>0:
+             whichneighs=neighb[bin1,0:nneighb[bin1]]
+             checkneigh=np.where(whichneighs==bin2) 
+             if (len(checkneigh[0]))>0: 
+               numtrans[bin1,checkneigh[0]]=numtrans[bin1,checkneigh[0]]+1  
+               whichneighs2=neighb[bin2,0:nneighb[bin2]]
+               checkneigh2=np.where(whichneighs2==bin1)
+               numtrans[bin2,checkneigh2[0]]=numtrans[bin2,checkneigh2[0]]+1
+             else:
+               if maxdist<1.1:
+                 neighb[bin1,nneighb[bin1]]=bin2
+                 neighb[bin2,nneighb[bin2]]=bin1            
+                 #distancen[bin1,nneighb[bin1]]=maxdist
+                 #distancen[bin2,nneighb[bin2]]=maxdist
+                 numtrans[bin1,nneighb[bin1]]=numtrans[bin1,nneighb[bin1]]+1
+                 numtrans[bin2,nneighb[bin2]]=numtrans[bin2,nneighb[bin2]]+1
+                 nneighb[bin1]=nneighb[bin1]+1
+                 nneighb[bin2]=nneighb[bin2]+1 
+           else:
+             if maxdist<1.1: 
+               neighb[bin1,nneighb[bin1]]=bin2
+               neighb[bin2,nneighb[bin2]]=bin1
+               #distancen[bin1,nneighb[bin1]]=maxdist
+               #distancen[bin2,nneighb[bin2]]=maxdist 
+               numtrans[bin1,nneighb[bin1]]=numtrans[bin1,nneighb[bin1]]+1
+               numtrans[bin2,nneighb[bin2]]=numtrans[bin2,nneighb[bin2]]+1 
+               nneighb[bin1]=nneighb[bin1]+1
+               nneighb[bin2]=nneighb[bin2]+1
+   neighb2=neighb
+   nneighb2=nneighb
+   numtrans2=numtrans
+   #distancen2=distancen
+   nneighb=np.zeros((numpoints),dtype=np.int32)
+   neighb=np.ones((numpoints,maxneigh),dtype=np.int32)
+   numtrans=np.zeros((numpoints,maxneigh),dtype=np.int32)
+   #distancen=np.zeros((numpoints,maxneigh))
+   neighb=-neighb
+   for i in range(0,numpoints):
+      if nneighb2[i]>0:
+        goodtrans=np.where(numtrans2[i,0:nneighb2[i]]>mintransitions)
+        nneighb[i]=len(goodtrans[0])
+        if nneighb[i]>0:
+          neighb[i,0:nneighb[i]]=neighb2[i,goodtrans[0]]
+          numtrans[i,0:nneighb[i]]=numtrans2[i,goodtrans[0]]
+          #distancen[i,0:nneighb[i]]=distancen2[i,goodtrans[0]]
+
    return nneighb,neighb
 
 def check_neighs(numpoints,nneighb,neighb):
@@ -324,22 +445,27 @@ def run_kmc(numsteps,numpoints,startstate):
       #else:
       for j in range(0,nneigh[state]):
          thisp=thisp+prob[state,j]
-         if thisp > rand:
+         if thisp > rand and freq[neigh[state,j]]>0:
            rand=np.random.rand()
            timekmc=timekmc-np.log(rand)/freq[state]
            state=neigh[state,j]
            break
    return popu   
 
-if calc_neighs:
-  print ("Calculating the neighbours")
-  nneigh,neigh=calc_neighs_fast(npoints)
+if calc_neighs:  
+  if do_kinetic_cont:
+    print ("Calculating the neighbours using kinetic contacts")
+    nneigh,neigh=calc_neighs_kcont(npoints,mintrans)
+    maxneigh=np.amax(nneigh) 
+  else:
+    print ("Calculating the neighbours using geometric contacts")
+    nneigh,neigh=calc_neighs_fast(npoints)
 
 if read_neighs:
   print ("Reading the neighbours")
   neighsarray = np.loadtxt(neighs_input_file)
   ncol=np.ma.size(neighsarray,axis=1)
-  if do_cutoff:
+  if do_cutoff or do_kinetic_cont:
     maxneigh=ncol-2
   if (ncol<maxneigh+2):
     print ("Error: number of columns in neighbour file is not consistent with the maximum number of neighbours")
@@ -354,6 +480,36 @@ if read_neighs:
   nneigh,neigh=check_neighs(npoints,nneigh,neigh)
   print ("Neighbours checked and eventually corrected")
 
+# remove bad neighbours
+if use_forces:
+
+  neigh2=neigh
+  nneigh2=nneigh
+  nneigh=np.zeros((npoints),dtype=np.int32)
+  neigh=np.ones((npoints,maxneigh),dtype=np.int32)
+  neigh=-neigh
+  for i in range(0,npoints):
+     if nneigh2[i]>0:
+       diff=tmparray[i,0:ndim]-tmparray[neigh2[i,0:nneigh2[i]],0:ndim]
+       if totperiodic>0:
+         diff=diff/box
+         diff=diff-np.rint(diff)*period
+         diff=diff*box
+       dist2=(diff/width)*(diff/width)
+       weighttot=weights[neigh2[i,0:nneigh2[i]],0:ndim]+weights[i,0:ndim]
+       pippo=np.where(dist2>0,1,0)
+       pippo2=np.where(weighttot==0,1,0)
+       pippo3=np.where(pippo*pippo2==1,0,1)
+       valid=np.amin(pippo3,axis=1)
+       goodtrans=np.where(valid>0)
+       nneigh[i]=len(goodtrans[0])
+       if nneigh[i]>0:
+         neigh[i,0:nneigh[i]]=neigh2[i,goodtrans[0]]
+
+if read_fes:
+  
+  
+ 
 print ("Got the neighbours")
 
 if do_cutoff:
@@ -382,17 +538,19 @@ for i in range(0,npoints):
       avergrad=tmparray[neigh[i,0:nneigh[i]],ndim:2*ndim]*weights[neigh[i,0:nneigh[i]],0:ndim]+tmparray[i,ndim:2*ndim]*weights[i,0:ndim]
       weighttot=weights[neigh[i,0:nneigh[i]],0:ndim]+weights[i,0:ndim]
       avergrad=np.where(weighttot>0,avergrad/weighttot,0)
-      pippo=np.where(diff>0,1,0)
-      pippo2=np.where(weighttot==0,1,0)
-      pippo3=np.where(pippo*pippo2==1,0,1)
-      valid=np.amin(pippo3,axis=1)
+      #pippo=np.where(diff>0,1,0)
+      #pippo2=np.where(weighttot==0,1,0)
+      #pippo3=np.where(pippo*pippo2==1,0,1)
+      #valid=np.amin(pippo3,axis=1)
       energydiff=np.sum(avergrad*diff,axis=1)
     else:       
       energydiff=tmparray[i,ndim]-tmparray[neigh[i,0:nneigh[i]],ndim]
-      valid=np.where(np.isnan(energydiff),0,1)
+      #valid=np.where(np.isnan(energydiff),0,1)
     if do_mfepath or do_spath:
-      logprobpath[i,0:nneigh[i]]=np.where(valid>0,(np.log(invdist))+(energydiff/(2*kb*pathtemp)),np.nan) 
-    prob[i,0:nneigh[i]]=np.where(valid>0,invdist*np.exp(energydiff/(2*kb*temp)),0.0)
+      logprobpath[i,0:nneigh[i]]=(np.log(invdist))+(energydiff/(2*kb*pathtemp)) 
+      #logprobpath[i,0:nneigh[i]]=np.where(valid>0,(np.log(invdist))+(energydiff/(2*kb*pathtemp)),np.nan) 
+    prob[i,0:nneigh[i]]=invdist*np.exp(energydiff/(2*kb*temp))
+    #prob[i,0:nneigh[i]]=np.where(valid>0,invdist*np.exp(energydiff/(2*kb*temp)),0.0)
 
 #print("--- %s seconds ---" % (time.time() - start_time))
 #sys.exit()
@@ -449,8 +607,9 @@ if do_fes:
     initstate=np.argmax(minweights*validstate)
 
   else:
-    initstate=np.argmin(fesarray[:,ndim])
-
+    goodstates=np.where(nneigh>0)
+    goodfes=fesarray[goodstates[0],ndim]
+    initstate=goodstates[0][np.argmin(goodfes)] 
   pop=run_kmc(nsteps,npoints,initstate)  
     
   maxpop=np.amax(pop)
