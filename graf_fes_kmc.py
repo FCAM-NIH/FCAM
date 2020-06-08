@@ -295,7 +295,7 @@ if read_fes:
   if maxfes>0:
     validstates=np.where(fesarray[:,ndim]<=maxfes)
     stateisvalid=np.where(fesarray[:,ndim]<=maxfes,1,0)
-  else
+  else:
     validstates=np.where(np.isfinite(fesarray[:,ndim]))
     stateisvalid=np.where(np.isfinite(fesarray[:,ndim]),1,0)
 
@@ -506,10 +506,6 @@ if use_forces and wethreshold<0:
        if nneigh[i]>0:
          neigh[i,0:nneigh[i]]=neigh2[i,goodtrans[0]]
 
-if read_fes:
-  
-  
- 
 print ("Got the neighbours")
 
 if do_cutoff:
