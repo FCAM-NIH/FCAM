@@ -17,9 +17,9 @@ def parse():
                         help="Calculate neighbours from inter-bin transitions evaluated on a continous trajectory with bin-labels", \
                         default=False, dest='do_kcont', action='store_true')
     parser.add_argument("-labelsf", "--labelsfile", \
-                        help="input file containing time, colvars and bin-label across a continuous trajectory", \
+                        help="input file containing time, colvars and bin-label across a continuous trajectory (relevant with the option -kcont) ", \
 			default="labels.out",type=str, required=False)
-    parser.add_argument("-minbintrans", "--minnumbintransitions", help="Minimum number of transitions between two bins to be considered neighbors", \
+    parser.add_argument("-minbintrans", "--minnumbintransitions", help="Minimum number of transitions between two bins to be considered neighbors (relevant with the option -kcont)", \
                         default=0,type=int, required=False)
     parser.add_argument("-rneighs","--readneighs", \
                         help="read neighbours from file ", \
@@ -417,6 +417,18 @@ def check_neighs(numpoints,nneighb,neighb):
          if (len(checkneigh[0]))==0:
            neighb[whichneighs[j],nneighb[whichneighs[j]]]=i
            nneighb[whichneighs[j]]=nneighb[whichneighs[j]]+1
+   neighb2=neighb
+   nneighb2=nneighb
+   nneighb=np.zeros((numpoints),dtype=np.int32)
+   neighb=np.ones((numpoints,maxneigh),dtype=np.int32)
+   neighb=-neighb
+   for i in range(0,numpoints):
+      if stateisvalid[i] and nneighb2[i]>0:
+        goodtrans=np.where(stateisvalid[neighb2[i,0:nneighb2[i]]])    
+        nneighb[i]=len(goodtrans[0])
+        if nneighb[i]>0:
+          neighb[i,0:nneighb[i]]=neighb2[i,goodtrans[0]] 
+ 
    return nneighb,neighb
 
 @jit(nopython=True)
@@ -465,11 +477,11 @@ if read_neighs:
   print ("Reading the neighbours")
   neighsarray = np.loadtxt(neighs_input_file)
   ncol=np.ma.size(neighsarray,axis=1)
-  if do_cutoff or do_kinetic_cont:
-    maxneigh=ncol-2
-  if (ncol<maxneigh+2):
-    print ("Error: number of columns in neighbour file is not consistent with the maximum number of neighbours")
-    sys.exit()
+  #if do_cutoff or do_kinetic_cont:
+  maxneigh=ncol-2
+  #if (ncol<maxneigh+2):
+  #  print ("Error: number of columns in neighbour file is not consistent with the maximum number of neighbours")
+  #  sys.exit()
   if (len(neighsarray)!=npoints):
     print ("Error: number of bins in neighbour file is not consistent")
     print (len(neighsarray),npoints)
@@ -599,8 +611,8 @@ if do_fes:
 
   if use_forces:  
     minweights=np.amin(weights,axis=1)
-    validstate=np.where(freq>0,1,0)
-    initstate=np.argmax(minweights*validstate)
+    validfreq=np.where(freq>0,1,0)
+    initstate=np.argmax(minweights*validfreq)
 
   else:
     goodstates=np.where(nneigh>0)
