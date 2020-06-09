@@ -523,7 +523,8 @@ print ("Got the neighbours")
 if do_cutoff:
   maxneigh=np.amax(nneigh)
 prob=np.zeros((npoints,maxneigh))
-logprobpath=np.zeros((npoints,maxneigh))
+logprobpath=np.empty((npoints,maxneigh))
+logprobpath[:,:]=np.nan
 
 if print_neighs:
   with open(neighs_file, 'a') as f:
