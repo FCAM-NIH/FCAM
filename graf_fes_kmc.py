@@ -46,6 +46,8 @@ def parse():
                         default=-1.0,type=float, required=False)
     parser.add_argument("-maxfes", "--maxfes", help="Discard states having free energy larger than maxfes", \
                         default=-1.0,type=float, required=False)
+    parser.add_argument("-minneighs", "--minneighs", help="Minimum number of neighbors for a state to be valid", \
+                        default=0,type=int, required=False)
     parser.add_argument("-dexp", "--distexp", help="exponent to weight the distances in the transition probability (1/(d^dexp))", \
                         default=2.0,type=float, required=False)
     parser.add_argument("-ofesf", "--outfesfile", \
@@ -129,6 +131,7 @@ nsteps=args.numkmcsteps
 dexp=args.distexp
 wethreshold=args.wethreshold
 maxfes=args.maxfes
+minneighs=args.minneighs
 free_energy_file=args.outfesfile
 neighs_file=args.outneighfile
 nearest=args.do_nearest
@@ -423,6 +426,9 @@ def check_neighs(numpoints,nneighb,neighb):
    neighb=np.ones((numpoints,maxneigh),dtype=np.int32)
    neighb=-neighb
    for i in range(0,numpoints):
+      if nneighb2[i]<minneighs:
+        stateisvalid[i]=0
+   for i in range(0,numpoints):
       if stateisvalid[i] and nneighb2[i]>0:
         goodtrans=np.where(stateisvalid[neighb2[i,0:nneighb2[i]]])    
         nneighb[i]=len(goodtrans[0])
@@ -472,6 +478,8 @@ if calc_neighs:
   else:
     print ("Calculating the neighbours using geometric contacts")
     nneigh,neigh=calc_neighs_fast(npoints)
+  nneigh,neigh=check_neighs(npoints,nneigh,neigh)
+  print ("Neighbours checked and eventually filtered")
 
 if read_neighs:
   print ("Reading the neighbours")
