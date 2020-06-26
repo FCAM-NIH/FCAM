@@ -103,7 +103,7 @@ args = parse()
 
 # parameters
 hcutoff=6.25 # cutoff for Gaussians
-wcutoff=6.25 # cutoff for Gaussians in weight calculation
+wcutoff=18.75 # cutoff for Gaussians in weight calculation
 
 # Variables
 ifile=args.inputfile
@@ -923,7 +923,7 @@ if nfrestart>0:
      for j in range (0,getpoints[0].size): 
         if getipoints[j]<0:
           getipoints[j]=getpoints[0][j]      
-        colvarsarray[i][getipoints[j]:getfpoints[j],0]='NaN'
+        colvarsarray[i][getipoints[j]:getfpoints[j],0]=np.nan
   #Debug
   #for i in range (0,npoints[i]):
   #   print colvarsarray[0][i,0],colvarsarray[0][i,1],colvarsarray[0][i,2],gradv[0][i,0],gradv[0][i,1] 
@@ -934,10 +934,10 @@ if do_boundaries:
   for i in range (0,ncolvars):
      tmpcolvarsarray=colvarsarray[i]
      for j in range(0,ndim):
-        gradv[i][0:npoints[i],j]=np.where(tmpcolvarsarray[0:npoints[i],whichcv[j]+1]<lowbound[j],'NaN',gradv[i][0:npoints[i],j])
-        gradv[i][0:npoints[i],j]=np.where(tmpcolvarsarray[0:npoints[i],whichcv[j]+1]>upbound[j],'NaN',gradv[i][0:npoints[i],j])
-        colvarsarray[i][0:npoints[i],whichcv[j]+1]=np.where(tmpcolvarsarray[0:npoints[i],whichcv[j]+1]<lowbound[j],'NaN',tmpcolvarsarray[0:npoints[i],whichcv[j]+1])
-        colvarsarray[i][0:npoints[i],whichcv[j]+1]=np.where(tmpcolvarsarray[0:npoints[i],whichcv[j]+1]>upbound[j],'NaN',tmpcolvarsarray[0:npoints[i],whichcv[j]+1])
+        gradv[i][0:npoints[i],j]=np.where(tmpcolvarsarray[0:npoints[i],whichcv[j]+1]<lowbound[j],np.nan,gradv[i][0:npoints[i],j])
+        gradv[i][0:npoints[i],j]=np.where(tmpcolvarsarray[0:npoints[i],whichcv[j]+1]>upbound[j],np.nan,gradv[i][0:npoints[i],j])
+        colvarsarray[i][0:npoints[i],whichcv[j]+1]=np.where(tmpcolvarsarray[0:npoints[i],whichcv[j]+1]<lowbound[j],np.nan,tmpcolvarsarray[0:npoints[i],whichcv[j]+1])
+        colvarsarray[i][0:npoints[i],whichcv[j]+1]=np.where(tmpcolvarsarray[0:npoints[i],whichcv[j]+1]>upbound[j],np.nan,tmpcolvarsarray[0:npoints[i],whichcv[j]+1])
      colvarsarray[i]=np.ma.masked_invalid(colvarsarray[i])
      colvarsarray[i]=np.ma.mask_rows(colvarsarray[i])
      gradv[i]=np.ma.masked_invalid(gradv[i])
@@ -946,7 +946,7 @@ if do_boundaries:
 if nfrestart>0:
   for i in range (0,ncolvars):
      for j in range(0,ndim):
-        gradv[i][:,j]=np.where(np.isnan(colvarsarray[i][:,0]),'NaN',gradv[i][:,j])
+        gradv[i][:,j]=np.where(np.isnan(colvarsarray[i][:,0]),np.nan,gradv[i][:,j])
      colvarsarray[i]=np.ma.masked_invalid(colvarsarray[i])
      colvarsarray[i]=np.ma.mask_rows(colvarsarray[i])
      gradv[i]=np.ma.masked_invalid(gradv[i])
@@ -968,8 +968,8 @@ if do_gefilter:
          tmpcolvarsarray=colvarsarray[i]
          diffc=np.abs(tmpcolvarsarray[:,colgenerread[i]]-gaussenergy[i][:])     
          for j in range(0,ndim):
-            gradv[i][0:npoints[i],j]=np.where(diffc[0:npoints[i]]>tgefilt,'NaN',gradv[i][0:npoints[i],j])
-         colvarsarray[i][0:npoints[i],0]=np.where(diffc[0:npoints[i]]>tgefilt,'NaN',colvarsarray[i][0:npoints[i],0])
+            gradv[i][0:npoints[i],j]=np.where(diffc[0:npoints[i]]>tgefilt,np.nan,gradv[i][0:npoints[i],j])
+         colvarsarray[i][0:npoints[i],0]=np.where(diffc[0:npoints[i]]>tgefilt,np.nan,colvarsarray[i][0:npoints[i],0])
          colvarsarray[i]=np.ma.masked_invalid(colvarsarray[i])
          colvarsarray[i]=np.ma.mask_rows(colvarsarray[i])
          gradv[i]=np.ma.masked_invalid(gradv[i])
@@ -1169,14 +1169,17 @@ if do_label:
          for i in range(0,npoints[k]):
             if binlabel[i]!=-999:
               if np.ma.is_masked(colvarsarray[k][i,0]):
+                f.write("%s " % (-999)) 
                 for j in range (0,ndim):
                    f.write("%s " % (-999))
                 f.write("%s %s \n " % (-999,k))
               else:
+                f.write("%s " % (colvarsarray[k][i,0]))
                 for j in range (0,ndim): 
                    f.write("%s " % (colvarseff[binlabel[i],j])) 
                 f.write("%s %s \n " % (binlabel[i],k))
             else:
+              f.write("%s " % (-999)) 
               for j in range (0,ndim):
                  f.write("%s " % (-999))
               f.write("%s %s \n " % (binlabel[i],k))
