@@ -356,7 +356,8 @@ def calc_neighs_kcont(numpoints,mintransitions):
       bin2=int(labelsarray[i+1,ncoll-2])
       if bin1>0 and bin2>0 and bin1!=bin2 and stateisvalid[bin1] and stateisvalid[bin2]:
         if time2-time1>0.1*step and time2-time1<1.1*step:
-           diff=labelsarray[i,1:ndim+1]-labelsarray[i+1,1:ndim+1]
+           #diff=labelsarray[i,1:ndim+1]-labelsarray[i+1,1:ndim+1]
+           diff=tmparray[bin1,0:ndim]-tmparray[bin2,0:ndim]
            if totperiodic>0:
              diff=diff/box
              diff=diff-np.rint(diff)*period

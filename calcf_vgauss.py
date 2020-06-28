@@ -77,6 +77,9 @@ def parse():
     parser.add_argument("-label","--label", \
                         help="label COLVARS according to the effective foints", \
                         default=False, dest='do_label', action='store_true')
+    parser.add_argument("-wrtlabelscrd","---writelabelscoord", \
+                        help="write COLVARS for each label", \
+                        default=False, dest='write_label_coord', action='store_true')
     parser.add_argument("-hlfl","--hillfreqlarge", \
                         help="Metadynamics in which HILLS are stored more frequently than COLVARS", \
                         default=False, dest='do_hlfl', action='store_true')
@@ -111,6 +114,7 @@ do_hills_bias=args.do_hbias
 do_bin_data=args.do_bdat
 do_bin_data=args.do_bdat
 do_label=args.do_label
+writelabelscoord=args.write_label_coord
 do_force=args.do_force
 do_boundaries=args.do_bound
 do_gefilter=args.do_gefilt
@@ -1166,23 +1170,37 @@ if do_label:
 
      binlabel=assign_bins(npoints[k], arrayin, neffpoints, colvarseff)
      with open(labelfile, 'a') as f:
-         for i in range(0,npoints[k]):
-            if binlabel[i]!=-999:
-              if np.ma.is_masked(colvarsarray[k][i,0]):
+         if writelabelscoord:
+           for i in range(0,npoints[k]):
+              if binlabel[i]!=-999:
+                if np.ma.is_masked(colvarsarray[k][i,0]):
+                  f.write("%s " % (-999)) 
+                  for j in range (0,ndim):
+                     f.write("%s " % (-999))
+                  f.write("%s %s \n " % (-999,k))
+                else:
+                  f.write("%s " % (colvarsarray[k][i,0]))
+                  for j in range (0,ndim): 
+                     f.write("%s " % (colvarseff[binlabel[i],j])) 
+                  f.write("%s %s \n " % (binlabel[i],k))
+              else:
                 f.write("%s " % (-999)) 
                 for j in range (0,ndim):
                    f.write("%s " % (-999))
-                f.write("%s %s \n " % (-999,k))
-              else:
-                f.write("%s " % (colvarsarray[k][i,0]))
-                for j in range (0,ndim): 
-                   f.write("%s " % (colvarseff[binlabel[i],j])) 
                 f.write("%s %s \n " % (binlabel[i],k))
-            else:
-              f.write("%s " % (-999)) 
-              for j in range (0,ndim):
-                 f.write("%s " % (-999))
-              f.write("%s %s \n " % (binlabel[i],k))
+         else:
+           for i in range(0,npoints[k]):
+              if binlabel[i]!=-999:
+                if np.ma.is_masked(colvarsarray[k][i,0]):
+                  f.write("%s " % (-999))
+                  f.write("%s %s \n " % (-999,k))
+                else:
+                  f.write("%s " % (colvarsarray[k][i,0]))
+                  f.write("%s %s \n " % (binlabel[i],k))
+              else:
+                f.write("%s " % (-999))
+                f.write("%s %s \n " % (binlabel[i],k))
+
 
 # READ FORCE AND EFFECTIVE POINTS FROM EXTERNAL FILE
 
