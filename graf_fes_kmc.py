@@ -334,11 +334,11 @@ def calc_neighs_fast(numpoints):
        nneighb[validstates[0][whichneigh[:]]]=nneighb[validstates[0][whichneigh[:]]]+1 
    return nneighb,neighb
 
-def calc_neighs_kcont(numpoints,mintransitions):
+def calc_neighs_kcont(numpoints,mintransitions,maxn):
    nneighb=np.zeros((numpoints),dtype=np.int32)
-   neighb=np.ones((numpoints,maxneigh),dtype=np.int32)
-   numtrans=np.zeros((numpoints,maxneigh),dtype=np.int32) 
-   #distancen=np.zeros((numpoints,maxneigh))
+   neighb=np.ones((numpoints,maxn),dtype=np.int32)
+   numtrans=np.zeros((numpoints,maxn),dtype=np.int32) 
+   #distancen=np.zeros((numpoints,maxn))
    neighb=-neighb
    ncoll=np.ma.size(labelsarray,axis=1)
    for i in range(0,labelspoints-1):
@@ -392,14 +392,16 @@ def calc_neighs_kcont(numpoints,mintransitions):
                numtrans[bin2,nneighb[bin2]]=numtrans[bin2,nneighb[bin2]]+1 
                nneighb[bin1]=nneighb[bin1]+1
                nneighb[bin2]=nneighb[bin2]+1
-   neighb2=neighb
+   maxn=np.amax(nneighb)
+   neighb2=neighb[:,0:maxn]
+#   neighb2=neighb
    nneighb2=nneighb
    numtrans2=numtrans
    #distancen2=distancen
    nneighb=np.zeros((numpoints),dtype=np.int32)
-   neighb=np.ones((numpoints,maxneigh),dtype=np.int32)
-   numtrans=np.zeros((numpoints,maxneigh),dtype=np.int32)
-   #distancen=np.zeros((numpoints,maxneigh))
+   neighb=np.ones((numpoints,maxn),dtype=np.int32)
+   numtrans=np.zeros((numpoints,maxn),dtype=np.int32)
+   #distancen=np.zeros((numpoints,maxn))
    neighb=-neighb
    for i in range(0,numpoints):
       if nneighb2[i]>0:
@@ -474,7 +476,7 @@ def run_kmc(numsteps,numpoints,startstate):
 if calc_neighs:  
   if do_kinetic_cont:
     print ("Calculating the neighbours using kinetic contacts")
-    nneigh,neigh=calc_neighs_kcont(npoints,mintrans)
+    nneigh,neigh=calc_neighs_kcont(npoints,mintrans,maxneigh)
     maxneigh=np.amax(nneigh) 
   else:
     print ("Calculating the neighbours using geometric contacts")
