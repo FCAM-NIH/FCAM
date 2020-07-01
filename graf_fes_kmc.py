@@ -267,8 +267,8 @@ else:
 if do_kinetic_cont:
   maxneigh=np.power(3,ndim)-1
 
-
-mctemp=mctemp*maxneigh
+#mctemp=mctemp*maxneigh
+mctemp=mctemp*2*ndim
 
 if use_forces:
   tmparray=forcearray 
