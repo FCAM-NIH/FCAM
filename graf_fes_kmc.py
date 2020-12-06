@@ -102,9 +102,9 @@ def parse():
     parser.add_argument("-pfile", "--pathfile", \
                         help="output file containing the minimized path", \
                         default="path_file.out",type=str, required=False)
-    parser.add_argument("-refpath","--refinepath", \
-                        help="refine calculated minimum free energy path between two bins", \
-                        default=False, dest='ref_mfepath', action='store_true')
+    parser.add_argument("-reoptpath","--reoptimizepath", \
+                        help="reoptimize calculated minimum free energy path between two bins", \
+                        default=False, dest='reopt_mfepath', action='store_true')
 
 
 #per_iter_path_file
@@ -140,7 +140,7 @@ do_mfepath=args.do_mfepath
 do_spath=args.do_spath
 do_cutoff=args.do_cutoff
 cutoff=args.cutoffval
-ref_mfepath=args.ref_mfepath
+reopt_mfepath=args.reopt_mfepath
 startbinmfepath=args.startbinmfepath-1
 finalbinmfepath=args.finalbinmfepath-1
 numpaths=args.numpathsteps
@@ -833,7 +833,11 @@ if do_mfepath:
           accepted=True 
         with open(per_iter_path_file, 'a') as f:
             f.write("%s %s %s %s %s \n" % (lnlike,np.sum(enerlike),len(path),lnlike-minpathlnlike,accepted))
-        if minpathlnlike<minpathdeflnlike:
+        if reopt_mfepath:
+          minpathdef=minpath
+          minpathdeflnlike=minpathlnlike
+          minpathdefenerlike=minpathenerlike
+        elif minpathlnlike<minpathdeflnlike:
           minpathdef=minpath 
           minpathdeflnlike=minpathlnlike
           minpathdefenerlike=minpathenerlike

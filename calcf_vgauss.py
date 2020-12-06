@@ -23,6 +23,12 @@ def parse():
                         default=0.00831446261815324,type=float, required=False)
     parser.add_argument("-wf", "--widthfactor", help="Scaling factor of the width (wfact) to assign the force constant (k=kb*temp*(wfact*wfact)/(width*width); default is 2 (width is read in the GRID defined in the input file)", \
                         default=2.0,type=float, required=False)
+    parser.add_argument("-colvars","--colvars", \
+                        help="Use default parameters for Colvars", \
+                        default=False, dest='do_colv', action='store_true')
+    parser.add_argument("-internalf","--internalforces", \
+                        help="Provided free energy gradients are based on internal forces", \
+                        default=False, dest='do_intern', action='store_true')
     parser.add_argument("-nometaf","--nocalcmetabiasforce", \
                         help="Do not calculate bias forces of metadynamics Gaussian hills. By default metadynamics bias calculation is ON", \
                         default=True, dest='do_hbias', action='store_false')
@@ -104,13 +110,11 @@ def parse():
 
 args = parse()
 
-# parameters
-hcutoff=6.25 # cutoff for Gaussians
-wcutoff=18.75 # cutoff for Gaussians in weight calculation
-
 # Variables
 ifile=args.inputfile
 do_hills_bias=args.do_hbias
+do_colvars=args.do_colv
+do_internalf=args.do_intern
 do_bin_data=args.do_bdat
 do_bin_data=args.do_bdat
 do_label=args.do_label
@@ -142,6 +146,20 @@ colgener=args.colgener
 do_large_hfreq=args.do_hlfl
 trajfraction1=args.trajfraction1
 trajfraction2=args.trajfraction2
+
+# parameters
+if do_colvars:
+  hcutoff=11.5 # cutoff for Gaussians
+else:
+  hcutoff=6.25 # cutoff for Gaussians
+wcutoff=18.75 # cutoff for Gaussians in weight calculation
+
+if do_hills_bias:
+  do_internalf=False
+
+internalf=1.0
+if do_internalf:
+  internalf=0.0
 
 if trajfraction1>=1.0 or trajfraction1<0.0:
   print ("ERROR: please select a trajectory starting point between 0 and 1")  
@@ -703,13 +721,13 @@ def calc_vhar_force(numepoints, numpoints, effparray, colvars, gradbias):
       #for j in range(0,ndim):
         #grade[i,j]=-np.average(2.0*kb*temp*diffc[whichpoints[:],j]/width[j]+gradbias[whichpoints[:],j],weights=weight[:]) 
       #grade[i,:]=-np.sum((2.0*kb*temp*diffc[0:numpoints,:]/width[:]+gradbias[0:numpoints,:])*weight[0:numpoints,np.newaxis],axis=0)
-        grade[i,:]=-np.sum((widthfact*kb*temp*diffc[whichpoints[0][:],:]/width[:]+gradbias[whichpoints[0][:],:])*weight[:,np.newaxis],axis=0) 
+        grade[i,:]=-np.sum((internalf*widthfact*kb*temp*diffc[whichpoints[0][:],:]/width[:]+gradbias[whichpoints[0][:],:])*weight[:,np.newaxis],axis=0) 
         tweights[i]=np.sum(weight)
         # fragment frames in two portions to calculate the error 
         weight1=np.where(np.cumsum(weight)<0.5*tweights[i],weight,0)
         weight2=np.where(np.cumsum(weight)>=0.5*tweights[i],weight,0)
-        grade1[i,:]=-np.sum((widthfact*kb*temp*diffc[whichpoints[0][:],:]/width[:]+gradbias[whichpoints[0][:],:])*weight1[:,np.newaxis],axis=0) 
-        grade2[i,:]=-np.sum((widthfact*kb*temp*diffc[whichpoints[0][:],:]/width[:]+gradbias[whichpoints[0][:],:])*weight2[:,np.newaxis],axis=0)
+        grade1[i,:]=-np.sum((internalf*widthfact*kb*temp*diffc[whichpoints[0][:],:]/width[:]+gradbias[whichpoints[0][:],:])*weight1[:,np.newaxis],axis=0) 
+        grade2[i,:]=-np.sum((internalf*widthfact*kb*temp*diffc[whichpoints[0][:],:]/width[:]+gradbias[whichpoints[0][:],:])*weight2[:,np.newaxis],axis=0)
         tweights1[i]=np.sum(weight1)
         tweights2[i]=np.sum(weight2)
         if tweights[i]>0:
@@ -987,7 +1005,7 @@ if do_gefilter:
   #  sys.exit()     
 
 for i in range (0,ncolvars):
-   print "NUMBER OF POINTS FOR WALKER ",i,": ",len(colvarsarray[i][:,0][~colvarsarray[i][:,0].mask])
+   print ("NUMBER OF POINTS FOR WALKER ",i,": ",len(colvarsarray[i][:,0][~colvarsarray[i][:,0].mask]))
 
 # CALCULATE NUMBER OF EFFECTIVE POINTS IF REQUIRED
 
