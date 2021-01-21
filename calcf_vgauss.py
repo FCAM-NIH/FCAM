@@ -154,13 +154,6 @@ else:
   hcutoff=6.25 # cutoff for Gaussians
 wcutoff=18.75 # cutoff for Gaussians in weight calculation
 
-if do_hills_bias:
-  do_internalf=False
-
-internalf=1.0
-if do_internalf:
-  internalf=0.0
-
 if trajfraction1>=1.0 or trajfraction1<0.0:
   print ("ERROR: please select a trajectory starting point between 0 and 1")  
   sys.exit()
@@ -398,6 +391,12 @@ if ncolvars==0:
 if do_force==False:
   calc_force_eff=False  
 
+if do_hills_bias:
+  do_internalf=False
+
+internalf=1.0
+if do_internalf:
+  internalf=0.0
 
 if ndim==0:
   print ("ERROR: number of variables is zero, please provide some to continue")
