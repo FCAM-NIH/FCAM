@@ -397,6 +397,7 @@ if do_hills_bias:
 internalf=1.0
 if do_internalf:
   internalf=0.0
+  print ("Assuming internal forces, no biased force will be calculated") 
 
 if ndim==0:
   print ("ERROR: number of variables is zero, please provide some to continue")
