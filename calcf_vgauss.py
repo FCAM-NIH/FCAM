@@ -23,15 +23,17 @@ def parse():
                         default=0.00831446261815324,type=float, required=False)
     parser.add_argument("-wf", "--widthfactor", help="Scaling factor of the width (wfact) to assign the force constant (k=kb*temp*(wfact*wfact)/(width*width); default is 2 (width is read in the GRID defined in the input file)", \
                         default=2.0,type=float, required=False)
+    parser.add_argument("-colvarbias_column", "--read_colvarbias_column", help="read biasing force from COLVAR_FILE at a specified number of columns after the associated CV (e.g. 1 is right after the CV)", \
+                        default=-1,type=int, required=False)
     parser.add_argument("-colvars","--colvars", \
                         help="Use default parameters for Colvars", \
                         default=False, dest='do_colv', action='store_true')
     parser.add_argument("-internalf","--internalforces", \
                         help="Provided free energy gradients are based on internal forces", \
                         default=False, dest='do_intern', action='store_true')
-    parser.add_argument("-nometaf","--nocalcmetabiasforce", \
-                        help="Do not calculate bias forces of metadynamics Gaussian hills. By default metadynamics bias calculation is ON", \
-                        default=True, dest='do_hbias', action='store_false')
+    parser.add_argument("-calcmetaf","--calcmetabiasforce", \
+                        help="Calculate biasing forces of metadynamics from a HILLS file which stores the deposited Gaussian hills (TIME CV1 CV2... SIGMA_CV1 SIGMA_CV2... HEIGHT). By default metadynamics bias calculation is OFF", \
+                        default=False, dest='do_hbias', action='store_true')
     parser.add_argument("-noforce","--nocalcforce", \
                         help="Do not calculate forces. By default forces calculation is ON", \
                         default=True, dest='do_force', action='store_false')
@@ -140,6 +142,7 @@ temp=args.temp
 skip=args.skip
 kb=args.kb
 widthfact=args.widthfactor
+colvarbias_column=args.read_colvarbias_column
 tgefilt=args.valgefilt
 nfrestart=args.numframerest
 colgener=args.colgener
@@ -325,7 +328,10 @@ for line in f:
         else:
           periodic.append(0)
       ndim=ndim+1       
-    if str(parts[0])=="READ_GRAD":
+    if str(parts[0])=="READ_APP_FORCE":
+      if colvarbias_column>0:
+         print ("ERROR: you are reading the biasing forces two times; from a file (through READ_APP_FORCE) and also from the COLVAR_FILE (through -colvarbias_column). Select just one of the two options. ")
+         sys.exit()  
       if ngfiles==0:
         gfile=[str(parts[1])] 
         read_gfile=True
@@ -362,10 +368,12 @@ for line in f:
         rcvcomp.append(pluto)  
       nffiles=nffiles+1
 
-#DEBUG
-#sys.exit()
-
 print ("Input read")
+
+if colvarbias_column>0:
+  read_gfile=True
+  do_hills_bias=False
+
 if do_just_eff_points:
   calc_epoints=True
   do_hills_bias=False
@@ -374,6 +382,7 @@ if do_just_eff_points:
   read_ffile=False
   calc_force_eff=False  
   do_bin_data=False
+  print ("Requested just derivation of effective points (e.g. GRID on which mean forces will be evaluated) and nothing else")
 
 if do_just_hills_bias:
   calc_epoints=False
@@ -383,6 +392,7 @@ if do_just_hills_bias:
   read_ffile=False
   calc_force_eff=False
   do_bin_data=False
+  print ("Requested just derivation applied forces from HILLS files for each simulation frame and nothing else")
   
 if ncolvars==0:
   calc_epoints=False  
@@ -397,7 +407,15 @@ if do_hills_bias:
 internalf=1.0
 if do_internalf:
   internalf=0.0
-  print ("Assuming internal forces, no biased force will be calculated") 
+  print ("The force for each frame read from file (through READ_APP_FORCE or -colvarbias_column) is the internal force: FCAM not applied, mean forces are calculated as the local average of the internal forces") 
+  if colvarbias_column<=1:
+    print ("ERROR: both total and applied force must be provided to evaluate the internal force; -colvarbias_column must be larger than 1")
+    sys.exit()    
+
+if read_gfile==False:
+  if do_hills_bias==False:
+    calc_force_eff=False
+    print ("NOTE: no option for reading applied forces from files or calculating them through HILLS files was selected: mean forces on effective points will not be calculated")
 
 if ndim==0:
   print ("ERROR: number of variables is zero, please provide some to continue")
@@ -408,12 +426,13 @@ if calc_force_eff and temp<0:
   sys.exit()
  
 if read_gfile:
-  if ngfiles!=1:
-    if ngfiles!=ncolvars:
-      print ("ERROR: please provide a unique gradient file")
-      print ("or a gradient file for each colvar.")
-      print ("Note that in either case this must be consistent with the ORDERED set of colvar files provided.")
-      sys.exit()
+  if colvarbias_column<0:
+    if ngfiles!=1:
+      if ngfiles!=ncolvars:
+        print ("ERROR: please provide a unique gradient file")
+        print ("or a gradient file for each colvar.")
+        print ("Note that in either case this must be consistent with the ORDERED set of colvar files provided.")
+        sys.exit()
 
 if do_hills_bias:
   with open(bias_grad_file, 'w') as f:
@@ -466,15 +485,6 @@ if read_ffile:
          f.write("# %s " % lowbound[j])
          f.write("  %s  " % (width[j]/2.0))
          f.write("  %s  " % (2*npointsv[j]))
-         f.write("  %s  \n" % periodic[j])
-
-if do_bin_data:
-  with open(force_bin_file, 'w') as f:
-      f.write("# %s \n" % ndim)
-      for j in range (0,ndim):
-         f.write("# %s " % lowbound[j])
-         f.write("  %s  " % width[j])
-         f.write("  %s  " % npointsv[j])
          f.write("  %s  \n" % periodic[j])
 
 cunique=np.unique(cfile)
@@ -738,97 +748,6 @@ def calc_vhar_force(numepoints, numpoints, effparray, colvars, gradbias):
           grade2[i,:]=grade2[i,:]/tweights2[i]    
    return grade,tweights,grade1,tweights1,grade2,tweights2
 
-# ROUTINE TO BIN THE DATA 
-
-def bin_data(numepoints, effparray, weights, gradarray):
-   colvarsbineff=np.zeros((numepoints, ndim))
-   nbins=1
-   diffc=np.zeros((numepoints,ndim)) 
-   distance=np.zeros((numepoints))
-   gradbin=np.zeros((numepoints,ndim))
-   diffbin=np.zeros(ndim)
-   colvarbin=np.zeros(ndim)
-   weightbin=np.zeros((numepoints,ndim))
-   numinbin=np.zeros((numepoints),dtype=np.int64)
-   #indexmax=np.argmax(weights)
-   indexmax=0
-   totperiodic=np.sum(periodic[0:ndim])
-   #colvarsbineff[0,:]=effparray[indexmax,:]
-   colvarsbineff[0,:]=lowbound+0.5*box+0.5*width
-   for i in range(0,numepoints):
-      #diffc[i,:]=effparray[i,:]-(effparray[indexmax,:]-0.5*width)
-      diffc[i,:]=effparray[i,:]-(lowbound+0.5*box)
-      if totperiodic>0:
-        diffc[i,:]=diffc[i,:]/box[0:ndim]
-        diffc[i,:]=diffc[i,:]-np.rint(diffc[i,:])*periodic[0:ndim]
-        diffc[i,:]=diffc[i,:]*box[0:ndim]
-      colvarbin=0.5*width+width*np.floor(diffc[i,:]/width)+lowbound+0.5*box
-      colvarbin=(colvarbin-(lowbound+0.5*box))/box[0:ndim]
-      colvarbin=colvarbin-np.rint(colvarbin)*periodic[0:ndim]
-      colvarbin=colvarbin*box[0:ndim]+(lowbound+0.5*box)
-      diffc[0:nbins,:]=colvarsbineff[0:nbins,:]-colvarbin[:]
-      if totperiodic>0:
-        diffc[0:nbins,:]=diffc[0:nbins,:]/box[0:ndim]
-        diffc[0:nbins,:]=diffc[0:nbins,:]-np.rint(diffc[0:nbins,:])*periodic[0:ndim]
-        diffc[0:nbins,:]=diffc[0:nbins,:]*box[0:ndim]
-      diffc[0:nbins,:]=diffc[0:nbins,:]/width[0:ndim]
-      diffc[0:nbins,:]=diffc[0:nbins,:]*diffc[0:nbins,:]
-      distance[0:nbins]=np.sum(diffc[0:nbins,:],axis=1)
-      whichbin=np.argmin(distance[0:nbins])
-      mindistance=distance[whichbin]  
-      if mindistance>0.5:
-        colvarsbineff[nbins,:]=colvarbin
-        whichbin=nbins
-        nbins=nbins+1
-      numinbin[whichbin]=numinbin[whichbin]+1
-      gradbin[whichbin,0:ndim]=gradbin[whichbin,0:ndim]+gradarray[i,0:ndim]*weights[i,0:ndim]
-      #gradbin[whichbin,:]=gradbin[whichbin,:]+gradarray[i,:]
-      weightbin[whichbin,0:ndim]=weightbin[whichbin,0:ndim]+weights[i,0:ndim]   
-   for j in range(0,ndim):
-      gradbin[0:nbins,j]=np.where(weightbin[0:nbins,j]>0,gradbin[0:nbins,j]/weightbin[0:nbins,j],0)
-      #gradbin[0:nbins,j]=np.where(weightbin[0:nbins]>0,gradbin[0:nbins,j]/numinbin[0:nbins],0) 
-   #weightbin[0:nbins]=np.where(numinbin[0:nbins]>0,weightbin[0:nbins]/numinbin[0:nbins],0)
-   return colvarsbineff, gradbin, weightbin, nbins
-
-# Fast bin of the data based on bin identifier
-
-def fast_bin_data(numepoints, effparray, weights, gradarray):
-   diffc=np.zeros((numepoints,ndim))
-   myshift=np.ones((ndim),dtype=np.int64)
-   binid=np.ones((numepoints),dtype=np.int64) 
-   mywidth=width
-   shift=1
-   myshift[0]=1
-   for i in range (1,ndim):
-      myshift[i]=shift*(npointsv[i]+2)
-      shift=myshift[i]
-   totperiodic=np.sum(periodic[0:ndim])
-   diffc[:,:]=effparray[:,:]-(lowbound+0.5*box)
-   if totperiodic>0:
-     diffc[:,:]=diffc[:,:]/box[0:ndim]
-     diffc[:,:]=diffc[:,:]-np.rint(diffc[:,:])*periodic[0:ndim]
-     diffc[:,:]=diffc[:,:]*box[0:ndim]
-   bingrid=np.floor(diffc[:,:]/mywidth)
-   binid=np.sum((bingrid[:,0:ndim])*myshift[np.newaxis,0:ndim],axis=1)
-   effbinid=np.unique(binid,return_index=True,return_inverse=True,return_counts=True)
-   neffp=effbinid[1].size
-   gradbin=np.zeros((neffp,ndim))
-   weightbin=np.zeros((neffp,ndim))
-   indexbin=np.argsort(effbinid[2][:])
-   effcount=np.cumsum(effbinid[3])
-   effindexbin=np.split(indexbin,effcount)
-   for i in range (0,neffp):
-      gradbin[i,:]=np.sum(gradarray[effindexbin[i],:]*weights[effindexbin[i],:],axis=0)
-      weightbin[i,:]=np.sum(weights[effindexbin[i],:],axis=0) 
-   for j in range (0,ndim):
-      gradbin[:,j]=np.where(weightbin[:,j]>0,gradbin[:,j]/weightbin[:,j],0)
-   colvarbin=0.5*mywidth+mywidth*bingrid[effbinid[1][:],:]+(lowbound+0.5*box)
-   if totperiodic>0:
-     colvarbin=(colvarbin-(lowbound+0.5*box))/box[0:ndim]
-     colvarbin=colvarbin-np.rint(colvarbin)*periodic[0:ndim]
-     colvarbin=colvarbin*box[0:ndim]+(lowbound+0.5*box)
-   return colvarbin[0:neffp,0:ndim], gradbin, weightbin, neffp
-
 # calc HILLS forces
 
 if do_hills_bias:
@@ -906,31 +825,37 @@ if do_hills_bias:
        
 if read_gfile:
   print ("Reading bias forces from external file...") 
-  if ngfiles==1: 
-    gradarray = [np.loadtxt(gfile[0])]
-    if np.sum(npoints[:])!=len(gradarray[0]):
-      print ("ERROR: gradient file doesn't match COLVAR files")
-      sys.exit() 
+  if colvarbias_column<=0:
+    if ngfiles==1: 
+      gradarray = [np.loadtxt(gfile[0])]
+      if np.sum(npoints[:])!=len(gradarray[0]):
+        print ("ERROR: gradient file doesn't match COLVAR files")
+        sys.exit() 
+      totpoints=0
+      for k in range (0,ncolvars):
+         if k==0:
+           gradv=[gradarray[0][totpoints:totpoints+npoints[k],1:ndim+1]]
+           gaussenergy=[gradarray[0][totpoints:totpoints+npoints[k],ndim+1]]
+         if k>0:
+           gradv.append(gradarray[0][totpoints:totpoints+npoints[k],1:ndim+1])
+           gaussenergy.append(gradarray[0][totpoints:totpoints+npoints[k],ndim+1]) 
+         totpoints=totpoints+npoints[k]
+    else:
+      for k in range (0,ngfiles):
+         if npoints[k]!=len(gradarray[k]):
+           print ("ERROR: gradient file doesn't match COLVAR file")
+           sys.exit() 
+         if k==0:    
+           gradv=[gradarray[:,1:ndim+1]]
+           gaussenergy=[gradarray[:,ndim+1]]
+         if k>0:
+           gradv.append(gradarray[:,1:ndim+1]) 
+           gaussenergy.append(gradarray[:,ndim+1])
+  if colvarbias_column>0:
     totpoints=0
     for k in range (0,ncolvars):
        if k==0:
-         gradv=[gradarray[0][totpoints:totpoints+npoints[k],1:ndim+1]]
-         gaussenergy=[gradarray[0][totpoints:totpoints+npoints[k],ndim+1]]
-       if k>0:
-         gradv.append(gradarray[0][totpoints:totpoints+npoints[k],1:ndim+1])
-         gaussenergy.append(gradarray[0][totpoints:totpoints+npoints[k],ndim+1]) 
-       totpoints=totpoints+npoints[k]
-  else:
-    for k in range (0,ngfiles):
-       if npoints[k]!=len(gradarray[k]):
-         print ("ERROR: gradient file doesn't match COLVAR file")
-         sys.exit() 
-       if k==0:    
-         gradv=[gradarray[:,1:ndim+1]]
-         gaussenergy=[gradarray[:,ndim+1]]
-       if k>0:
-         gradv.append(gradarray[:,1:ndim+1]) 
-         gaussenergy.append(gradarray[:,ndim+1])
+         
 
 # create masked colvarsarray and gradv eliminating frames before and after restart
 
@@ -1289,34 +1214,6 @@ if read_ffile:
          for j in range (0,ndim-1):
             f.write("%s " % (weighttot[i,j])) 
          f.write("%s \n " % (weighttot[i,ndim-1]))
-
-if do_bin_data:
-  bincolvars=np.zeros((neffpoints,ndim))         
-  bingrad=np.zeros((neffpoints,ndim))
-  totweight=np.zeros((neffpoints,ndim))
-  binweight=np.zeros((neffpoints))
-  binnumbers=0
-  ncol=np.ma.size(weighttot,axis=1)
-  if ncol>1:
-    totweight=weighttot 
-  else:
-    for j in range(0,ndim):
-       totweight[:,j]=weighttot[:]
-     
-  if do_fast_bin_data: 
-    bincolvars, bingrad, binweight, binnumbers=fast_bin_data(neffpoints, colvarseff, totweight, grad) 
-  else:
-    bincolvars, bingrad, binweight, binnumbers=bin_data(neffpoints, colvarseff, totweight, grad)
-
-  for i in range(0,binnumbers):
-     with open(force_bin_file, 'a') as f:
-         for j in range (0,ndim):
-            f.write("%s " % (bincolvars[i,j]))
-         for j in range (0,ndim):
-            f.write("%s " % (bingrad[i,j]))
-         for j in range (0,ndim-1):
-            f.write("%s " % (binweight[i,j]))
-         f.write("%s \n " % (binweight[i,ndim-1]))
 
 print("--- %s seconds ---" % (time.time() - start_time)) 
 
