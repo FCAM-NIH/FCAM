@@ -834,10 +834,12 @@ if read_gfile:
       for k in range (0,ncolvars):
          if k==0:
            gradv=[gradarray[0][totpoints:totpoints+npoints[k],1:ndim+1]]
-           gaussenergy=[gradarray[0][totpoints:totpoints+npoints[k],ndim+1]]
+           if do_gefilter:
+             gaussenergy=[gradarray[0][totpoints:totpoints+npoints[k],ndim+1]]
          if k>0:
            gradv.append(gradarray[0][totpoints:totpoints+npoints[k],1:ndim+1])
-           gaussenergy.append(gradarray[0][totpoints:totpoints+npoints[k],ndim+1]) 
+           if do_gefilter:
+             gaussenergy.append(gradarray[0][totpoints:totpoints+npoints[k],ndim+1]) 
          totpoints=totpoints+npoints[k]
     else:
       for k in range (0,ngfiles):
@@ -846,10 +848,12 @@ if read_gfile:
            sys.exit() 
          if k==0:    
            gradv=[gradarray[:,1:ndim+1]]
-           gaussenergy=[gradarray[:,ndim+1]]
+           if do_gefilter:  
+             gaussenergy=[gradarray[:,ndim+1]]
          if k>0:
            gradv.append(gradarray[:,1:ndim+1]) 
-           gaussenergy.append(gradarray[:,ndim+1])
+           if do_gefilter:
+             gaussenergy.append(gradarray[:,ndim+1])
   if colvarbias_column>0:
     totpoints=0
     for k in range (0,ncolvars):
