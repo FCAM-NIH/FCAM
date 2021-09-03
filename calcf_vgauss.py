@@ -18,11 +18,10 @@ def parse():
                         default=0.0,type=float, required=False)
     parser.add_argument("-trfr2", "--trajfraction2", help="last frame fraction of the trajectory (range 0-1) to be used for force calculation (default is 1)", \
                         default=1.0,type=float, required=False)
-
     parser.add_argument("-kb", "--kb", help="Boltzmann factor to define free energy units. Default is 0.00831... kJ/mol", \
                         default=0.00831446261815324,type=float, required=False)
-    parser.add_argument("-wf", "--widthfactor", help="Scaling factor of the width (wfact) to assign the force constant (k=kb*temp*(wfact*wfact)/(width*width); default is 2 (width is read in the GRID defined in the input file)", \
-                        default=2.0,type=float, required=False)
+    parser.add_argument("-wf", "--widthfactor", help="Scaling factor of the width (wfact) to assign the force constant (k=kb*temp*(wfact*wfact)/(width*width); default is 1 (width is read in the GRID defined in the input file)", \
+                        default=1.0,type=float, required=False)
     parser.add_argument("-colvarbias_column", "--read_colvarbias_column", help="read biasing force from COLVAR_FILE at a specified number of columns after the associated CV (e.g. 1 is right after the CV)", \
                         default=-1,type=int, required=False)
     parser.add_argument("-colvars","--colvars", \
@@ -460,22 +459,22 @@ if calc_force_eff:
       f.write("# %s \n" % ndim)
       for j in range (0,ndim):
          f.write("# %s " % lowbound[j])
-         f.write("  %s  " % (width[j]/2.0))
-         f.write("  %s  " % (2*npointsv[j]))
+         f.write("  %s  " % (width[j]))
+         f.write("  %s  " % (npointsv[j]))
          f.write("  %s  \n" % periodic[j])
   with open(force_points_file1, 'w') as f:
       f.write("# %s \n" % ndim)
       for j in range (0,ndim):
          f.write("# %s " % lowbound[j])
-         f.write("  %s  " % (width[j]/2.0))
-         f.write("  %s  " % (2*npointsv[j]))
+         f.write("  %s  " % (width[j]))
+         f.write("  %s  " % (npointsv[j]))
          f.write("  %s  \n" % periodic[j])
   with open(force_points_file2, 'w') as f:
       f.write("# %s \n" % ndim)
       for j in range (0,ndim):
          f.write("# %s " % lowbound[j])
-         f.write("  %s  " % (width[j]/2.0))
-         f.write("  %s  " % (2*npointsv[j]))
+         f.write("  %s  " % (width[j]))
+         f.write("  %s  " % (npointsv[j]))
          f.write("  %s  \n" % periodic[j])
 
 if read_ffile:
@@ -483,8 +482,8 @@ if read_ffile:
       f.write("# %s \n" % ndim)
       for j in range (0,ndim):
          f.write("# %s " % lowbound[j])
-         f.write("  %s  " % (width[j]/2.0))
-         f.write("  %s  " % (2*npointsv[j]))
+         f.write("  %s  " % (width[j]))
+         f.write("  %s  " % (npointsv[j]))
          f.write("  %s  \n" % periodic[j])
 
 cunique=np.unique(cfile)
@@ -590,7 +589,7 @@ def calc_eff_points(numpoints, inputarray, npointsins):
         diffc[0:neffp,:]=diffc[0:neffp,:]/box[0:ndim]
         diffc[0:neffp,:]=diffc[0:neffp,:]-np.rint(diffc[0:neffp,:])*periodic[0:ndim]
         diffc[0:neffp,:]=diffc[0:neffp,:]*box[0:ndim]
-      diffc[0:neffp,:]=2.0*diffc[0:neffp,:]/width[0:ndim]
+      diffc[0:neffp,:]=diffc[0:neffp,:]/width[0:ndim]
       diffc[0:neffp,:]=diffc[0:neffp,:]*diffc[0:neffp,:]
       distance[0:neffp]=np.sum(diffc[0:neffp,:],axis=1)
       whichbin=np.argmin(distance[0:neffp])
@@ -607,7 +606,7 @@ def calc_eff_points(numpoints, inputarray, npointsins):
 def calc_eff_points_bins(numepoints, effparray, npointsins):
    colvarsbineff=np.zeros((numepoints, ndim))
    nbins=1
-   mywidth=width/2.0
+   mywidth=width
    diffc=np.zeros((numepoints,ndim))
    distance=np.zeros((numepoints))
    diffbin=np.zeros(ndim)
@@ -647,7 +646,7 @@ def calc_eff_points_bins(numepoints, effparray, npointsins):
 def fast_calc_eff_points(numepoints, effparray, npointsins):
    diffc=np.zeros((numepoints,ndim))
    myshift=np.ones((ndim),dtype=np.int64)
-   mywidth=width/2.0
+   mywidth=width
    shift=1
    myshift[0]=1
    binid=np.ones((numepoints),dtype=np.int64)
@@ -681,7 +680,7 @@ def fast_calc_eff_points(numepoints, effparray, npointsins):
 # DO LABELS: ASSIGN BIN ALONG A COLVAR FILE
 
 def assign_bins(numpoints, colvars, numepoints, effparray):
-   mywidth=width/2.0
+   mywidth=width
    diffc=np.zeros((numepoints,ndim))
    totperiodic=np.sum(periodic[0:ndim])
    labelbin=np.zeros((numpoints),dtype=np.int64)
@@ -1181,7 +1180,7 @@ if read_ffile:
            if len(tryarray)!=neffpoints:
              print ("ERROR, please provide files with the same lenght")
              sys.exit()
-           distance=np.amax(4*(colvarseff[:,:]-tryarray[:,0:ndim])*(colvarseff[:,:]-tryarray[:,0:ndim])/(width[0:ndim]*width[0:ndim])) 
+           distance=np.amax((colvarseff[:,:]-tryarray[:,0:ndim])*(colvarseff[:,:]-tryarray[:,0:ndim])/(width[0:ndim]*width[0:ndim])) 
            if distance>1:
              print ("ERROR, points where forces have been calculated are different")
              sys.exit()
