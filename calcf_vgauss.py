@@ -823,9 +823,10 @@ if do_hills_bias:
 # READ EXTERNAL FILE WITH GRADIENTS
        
 if read_gfile:
-  print ("Reading bias forces from external file...") 
+  print ("Reading applied forces from external file...") 
   if colvarbias_column<=0:
     if ngfiles==1: 
+      print ("Reading unique external file with applied force for all COLVAR files ...")
       gradarray = [np.loadtxt(gfile[0])]
       if np.sum(npoints[:])!=len(gradarray[0]):
         print ("ERROR: gradient file doesn't match COLVAR files")
@@ -842,24 +843,28 @@ if read_gfile:
              gaussenergy.append(gradarray[0][totpoints:totpoints+npoints[k],ndim+1]) 
          totpoints=totpoints+npoints[k]
     else:
+      print ("Reading separate external files with applied force for each COLVAR file ...") 
       for k in range (0,ngfiles):
-         if npoints[k]!=len(gradarray[k]):
-           print ("ERROR: gradient file doesn't match COLVAR file")
-           sys.exit() 
-         if k==0:    
-           gradv=[gradarray[:,1:ndim+1]]
-           if do_gefilter:  
-             gaussenergy=[gradarray[:,ndim+1]]
-         if k>0:
-           gradv.append(gradarray[:,1:ndim+1]) 
+         if k==0:
+           gradarray = [np.loadtxt(gfile[k])]
+           if npoints[k]!=len(gradarray[k]):
+             print ("ERROR: gradient file doesn't match COLVAR file")
+             sys.exit()
+           gradv=[gradarray[k][:,1:ndim+1]]
            if do_gefilter:
-             gaussenergy.append(gradarray[:,ndim+1])
+             gaussenergy=[gradarray[k][:,ndim+1]]
+         if k>0:
+           gradarray.append(np.loadtxt(gfile[k]))
+           gradv.append(gradarray[k][:,1:ndim+1])
+           if do_gefilter:
+             gaussenergy.append(gradarray[k][:,ndim+1])
   if colvarbias_column>0:
     totpoints=0
     for k in range (0,ncolvars):
        if k==0:
+         for j in range (0,ndim):
+            =colvarsarray[k][:,whichcv[j]+1]
          
-
 # create masked colvarsarray and gradv eliminating frames before and after restart
 
 if nfrestart>0:
