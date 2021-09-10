@@ -329,7 +329,7 @@ for line in f:
       ndim=ndim+1       
     if str(parts[0])=="READ_APP_FORCE":
       if colvarbias_column>0:
-         print ("ERROR: you are reading the biasing forces two times; from a file (through READ_APP_FORCE) and also from the COLVAR_FILE (through -colvarbias_column). Select just one of the two options. ")
+         print ("ERROR: you are reading the biasing forces two times; from a file (through READ_APP_FORCE) and also from the COLVAR_FILE (through -colvarbias_column). Select just the pertinent option. ")
          sys.exit()  
       if ngfiles==0:
         gfile=[str(parts[1])] 
@@ -372,6 +372,9 @@ print ("Input read")
 if colvarbias_column>0:
   read_gfile=True
   do_hills_bias=False
+  if do_gefilter:
+    print ("ERROR: filtering according to colvar energy match is not compatible with reading applied forces from colvar file (as those forces are expected to be exact)") 
+    sys.exit() 
 
 if do_just_eff_points:
   calc_epoints=True
@@ -425,7 +428,7 @@ if calc_force_eff and temp<0:
   sys.exit()
  
 if read_gfile:
-  if colvarbias_column<0:
+  if colvarbias_column<=0:
     if ngfiles!=1:
       if ngfiles!=ncolvars:
         print ("ERROR: please provide a unique gradient file")
@@ -823,7 +826,7 @@ if do_hills_bias:
 # READ EXTERNAL FILE WITH GRADIENTS
        
 if read_gfile:
-  print ("Reading applied forces from external file...") 
+  print ("Reading applied forces per frame from external file...") 
   if colvarbias_column<=0:
     if ngfiles==1: 
       print ("Reading unique external file with applied force for all COLVAR files ...")
@@ -855,6 +858,9 @@ if read_gfile:
              gaussenergy=[gradarray[k][:,ndim+1]]
          if k>0:
            gradarray.append(np.loadtxt(gfile[k]))
+           if npoints[k]!=len(gradarray[k]):
+             print ("ERROR: gradient file doesn't match COLVAR file")
+             sys.exit()
            gradv.append(gradarray[k][:,1:ndim+1])
            if do_gefilter:
              gaussenergy.append(gradarray[k][:,ndim+1])
@@ -862,8 +868,9 @@ if read_gfile:
     totpoints=0
     for k in range (0,ncolvars):
        if k==0:
-         for j in range (0,ndim):
-            =colvarsarray[k][:,whichcv[j]+1]
+         gradv=[colvarsarray[k][:,whichcv[0:ndim]+1+colvarbias_column]]
+       if k>0:
+         gradv.append(colvarsarray[k][:,whichcv[0:ndim]+1+colvarbias_column])
          
 # create masked colvarsarray and gradv eliminating frames before and after restart
 
