@@ -18,8 +18,11 @@ def parse():
                         default=0.0,type=float, required=False)
     parser.add_argument("-trfr2", "--trajfraction2", help="last frame fraction of the trajectory (range 0-1) to be used for force calculation (default is 1)", \
                         default=1.0,type=float, required=False)
-    parser.add_argument("-kb", "--kb", help="Boltzmann factor to define free energy units. Default is 0.00831... kJ/mol", \
-                        default=0.00831446261815324,type=float, required=False)
+    parser.add_argument("-units", "--units", \
+                        help="Choose free energy units specifying (case sensitive) either kj (kj/mol) or kcal (kcal/mol) (in alternative you can set the Boltzmann factor through the option -kb)", \
+                        type=str, required=False)
+    parser.add_argument("-kb", "--kb", help="Boltzmann factor to define free energy units.", \
+                        default=-1,type=float, required=False)
     parser.add_argument("-wf", "--widthfactor", help="Scaling factor of the width (wfact) to assign the force constant (k=kb*temp*(wfact*wfact)/(width*width); default is 1 (width is read in the GRID defined in the input file)", \
                         default=1.0,type=float, required=False)
     parser.add_argument("-colvarbias_column", "--read_colvarbias_column", help="read biasing force from COLVAR_FILE at a specified number of columns after the associated CV (e.g. would be 1 if it is right after the CV)", \
@@ -140,6 +143,7 @@ force_bin_file=args.outbinforcefile
 temp=args.temp
 skip=args.skip
 kb=args.kb
+units=args.units
 widthfact=args.widthfactor
 colvarbias_column=args.read_colvarbias_column
 tgefilt=args.valgefilt
@@ -155,6 +159,13 @@ if do_colvars:
 else:
   hcutoff=6.25 # cutoff for Gaussians
 wcutoff=18.75 # cutoff for Gaussians in weight calculation
+
+if str(units)=="kj":
+  kb=0.00831446261815324
+elif str(units)=="kcal":  
+  kb=0.0019858775 
+elif kb<0:
+    print ("ERROR: please specify either the units (-units) or the value of the Boltzmann factor (-kb)")
 
 if trajfraction1>=1.0 or trajfraction1<0.0:
   print ("ERROR: please select a trajectory starting point between 0 and 1")  
