@@ -22,7 +22,7 @@ def parse():
                         default=0.00831446261815324,type=float, required=False)
     parser.add_argument("-wf", "--widthfactor", help="Scaling factor of the width (wfact) to assign the force constant (k=kb*temp*(wfact*wfact)/(width*width); default is 1 (width is read in the GRID defined in the input file)", \
                         default=1.0,type=float, required=False)
-    parser.add_argument("-colvarbias_column", "--read_colvarbias_column", help="read biasing force from COLVAR_FILE at a specified number of columns after the associated CV (e.g. 1 is right after the CV)", \
+    parser.add_argument("-colvarbias_column", "--read_colvarbias_column", help="read biasing force from COLVAR_FILE at a specified number of columns after the associated CV (e.g. would be 1 if it is right after the CV)", \
                         default=-1,type=int, required=False)
     parser.add_argument("-colvars","--colvars", \
                         help="Use default parameters for Colvars", \
@@ -267,7 +267,7 @@ for line in f:
           has_a=False
           nact=0   
           for i in range (0,nparts):
-             if str(parts[i])=="HILLS_CVS": 
+             if str(parts[i])=="HILLS_CVS-CLS": 
                la=i
                has_a=True
                nafields=nafields+1
@@ -293,7 +293,7 @@ for line in f:
           nactive.append(int(0))
           a_cvs.append(int(-1))
       ncolvars=ncolvars+1
-    if str(parts[0])=="CV":
+    if str(parts[0])=="CV-CL":
       if ndim==0:
         whichcv=[int(parts[1])-1]
         lowbound=[float(parts[2])]
@@ -511,7 +511,7 @@ iactive[:,:]=-1
 allfound=True
 for i in range (0,ncolvars):
    if nactive[i]>ndim:
-     print ("ERROR: number of HILLS_CVS larger than total number of CVS")
+     print ("ERROR: number of HILLS_CVS-CLS larger than total number of CVS")
      sys.exit() 
    for j in range (0,nactive[i]):
       if nactive[i]>0: 
@@ -525,7 +525,7 @@ for i in range (0,ncolvars):
             allfound=False 
 
 if allfound==False:
-  print ("ERROR: HILLS_CVS must be part of the CVS used for CV")
+  print ("ERROR: HILLS_CVS-CLS must be part of the CVS used for CV-CL")
   sys.exit()
 
 # read the hills files
