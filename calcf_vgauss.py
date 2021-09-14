@@ -160,6 +160,12 @@ else:
   hcutoff=6.25 # cutoff for Gaussians
 wcutoff=18.75 # cutoff for Gaussians in weight calculation
 
+if colvarbias_column>0:
+  if do_colvars==False:
+    print ("ERROR: reading forces from COLVAR files is supported only for colvars ")
+    print ("ERROR: if you are using colvars please insert the option -colvars ")
+    sys.exit()
+
 if str(units)=="kj":
   kb=0.00831446261815324
 elif str(units)=="kcal":  
@@ -876,13 +882,13 @@ if read_gfile:
            if do_gefilter:
              gaussenergy.append(gradarray[k][:,ndim+1])
   if colvarbias_column>0:
-    totpoints=0
+    tmpwhichcv=np.array(whichcv)
     for k in range (0,ncolvars):
        if k==0:
-         gradv=[colvarsarray[k][:,whichcv[0:ndim]+1+colvarbias_column]]
+         gradv=[-colvarsarray[k][:,tmpwhichcv[0:ndim]+1+colvarbias_column]]
        if k>0:
-         gradv.append(colvarsarray[k][:,whichcv[0:ndim]+1+colvarbias_column])
-         
+         gradv.append(-colvarsarray[k][:,tmpwhichcv[0:ndim]+1+colvarbias_column])
+          
 # create masked colvarsarray and gradv eliminating frames before and after restart
 
 if nfrestart>0:
