@@ -171,7 +171,7 @@ if str(units)=="kj":
 elif str(units)=="kcal":  
   kb=0.0019858775 
 elif kb<0:
-    print ("ERROR: please specify either the units (-units) or the value of the Boltzmann factor (-kb)")
+    print ("ERROR: please specify either the units (-units) or the value of the Boltzmann factor (-kb option)")
 
 if trajfraction1>=1.0 or trajfraction1<0.0:
   print ("ERROR: please select a trajectory starting point between 0 and 1")  

@@ -38,8 +38,11 @@ def parse():
                         type=str, required=False)
     parser.add_argument("-temp", "--temp", help="Temperature (in Kelvin) of the kinetic motecarlo: larger temperature ensure assigning the population of high free energy regions", \
                         default=298,type=float, required=False)
-    parser.add_argument("-kb", "--kb", help="Boltzmann factor for calculating the force constant (k) and defining free energy units. Default is 0.00831... kJ/mol", \
-                        default=0.00831446261815324,type=float, required=False)
+    parser.add_argument("-units", "--units", \
+                        help="Choose free energy units specifying (case sensitive) either kj (kj/mol) or kcal (kcal/mol) (in alternative you can set the Boltzmann factor through the option -kb)", \
+                        type=str, required=False)
+    parser.add_argument("-kb", "--kb", help="Boltzmann factor for calculating the force constant (k) and defining free energy units.", \
+                        default=-1,type=float, required=False)
     parser.add_argument("-nsteps", "--numkmcsteps", help="number of kinetic montecarlo steps to calculate the free energy", \
                         default=20000000,type=int, required=False)
     parser.add_argument("-weth", "--wethreshold", help="Minimum value of the smallest weight for a state to be considered ", \
@@ -126,6 +129,7 @@ neighs_input_file=args.inneighfile
 ifile=args.forcefile
 temp=args.temp
 mctemp=args.mctemp
+units=args.units
 kb=args.kb
 nsteps=args.numkmcsteps
 dexp=args.distexp
@@ -153,6 +157,13 @@ read_path=args.read_path
 read_path_file=args.readminpathfile
 per_iter_path_file=args.periterpathfile
 path_file=args.pathfile
+
+if str(units)=="kj":
+  kb=0.00831446261815324
+elif str(units)=="kcal":
+  kb=0.0019858775
+elif kb<0:
+    print ("ERROR: please specify either the units (-units) or the value of the Boltzmann factor (-kb option)")
 
 if do_cutoff:
   nearest=False
