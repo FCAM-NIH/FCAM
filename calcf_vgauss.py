@@ -43,29 +43,23 @@ def parse():
                         help="output file of bias gradients for each frame", \
                         default="bias_grad.out",type=str, required=False)
     parser.add_argument("-oepf", "--outeffpointsfile", \
-                        help="output file of effective points to calculate forces", \
+                        help="output file of effective points (e.g. on which forces are going to be calculated)", \
                         default="eff_points.out",type=str, required=False)    
     parser.add_argument("-oeff", "--outeffforcefile", \
-                        help="output file effective points and forces", \
-                        default="force_on_eff_points.out",type=str, required=False)
+                        help="output file of free energy gradient on effective points", \
+                        default="grad_on_eff_points.out",type=str, required=False)
     parser.add_argument("-oeff1", "--outeffforcefile1", \
-                        help="output file effective points and forces using first half of the trajectory", \
-                        default="force_on_eff_points1.out",type=str, required=False)
+                        help="output file of free energy gradient on effective points using first half of the trajectory", \
+                        default="grad_on_eff_points1.out",type=str, required=False)
     parser.add_argument("-oeff2", "--outeffforcefile2", \
-                        help="output file effective points and forces using second half of the trajectory", \
-                        default="force_on_eff_points2.out",type=str, required=False)
+                        help="output file of of free energy gradient on effective points using second half of the trajectory", \
+                        default="grad_on_eff_points2.out",type=str, required=False)
     parser.add_argument("-ocmbeff", "--outcombeffforcefile", \
                         help="output combined file effective points and forces", \
-                        default="force_on_eff_points_comb.out",type=str, required=False)
-    parser.add_argument("-obff", "--outbinforcefile", \
-                        help="output file of binned colvar and forces", \
-                        default="force_on_bin_points.out",type=str, required=False)
+                        default="grad_on_eff_points_comb.out",type=str, required=False)
     parser.add_argument("-olf", "--outlabelfile", \
                         help="output file of labels (assigned bins along colvar) ", \
                         default="label.out",type=str, required=False)
-    parser.add_argument("-nobdat","--nobindata", \
-                        help="Do not bin data according to provided grid", \
-                        default=True, dest='do_bdat', action='store_false')
     parser.add_argument("-nobound","--noboundaries", \
                         help="Do not exclude data beyond grid boundaries", \
                         default=True, dest='do_bound', action='store_false')
@@ -75,9 +69,6 @@ def parse():
     parser.add_argument("-noeffpb","--noeffpointbin", \
                         help="Do not calculate effective points by binning but use non-overlapping spherical domains", \
                         default=True, dest='do_effpb', action='store_false')
-    parser.add_argument("-nofbind","--nofastbindata", \
-                        help="Do not use algorithm for fast data binning", \
-                        default=True, dest='do_fbind', action='store_false')
     parser.add_argument("-jceffp","--justcalceffpoints", \
                         help="Calculate effective points and do nothing else. COLVARS and GRID data must at least be provided", \
                         default=False, dest='do_jceffp', action='store_true')
@@ -119,8 +110,6 @@ ifile=args.inputfile
 do_hills_bias=args.do_hbias
 do_colvars=args.do_colv
 do_internalf=args.do_intern
-do_bin_data=args.do_bdat
-do_bin_data=args.do_bdat
 do_label=args.do_label
 writelabelscoord=args.write_label_coord
 do_force=args.do_force
@@ -130,7 +119,6 @@ do_just_eff_points=args.do_jceffp
 do_just_hills_bias=args.do_jmetab
 do_fast_eff_p_calc=args.do_feffpc
 do_bin_eff_p_calc=args.do_effpb
-do_fast_bin_data=args.do_fbind
 do_backrestart=args.do_backres
 bias_grad_file=args.outbiasgradfile
 labelfile=args.outlabelfile
@@ -400,7 +388,6 @@ if do_just_eff_points:
   read_efile=False
   read_ffile=False
   calc_force_eff=False  
-  do_bin_data=False
   print ("Requested just derivation of effective points (e.g. GRID on which mean forces will be evaluated) and nothing else")
 
 if do_just_hills_bias:
@@ -410,7 +397,6 @@ if do_just_hills_bias:
   read_efile=False
   read_ffile=False
   calc_force_eff=False
-  do_bin_data=False
   print ("Requested just derivation applied forces from HILLS files for each simulation frame and nothing else")
   
 if ncolvars==0:
