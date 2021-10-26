@@ -442,7 +442,7 @@ if read_gfile:
 
 if do_hills_bias:
   with open(bias_grad_file, 'w') as f:
-      f.write("# Time, grad, Gaussenergy, numhill, trh, index, replica \n")
+      f.write("# Time, grad, Gaussenergy, numhill, next_restart, previous_restart, replica \n")
 
 if calc_epoints:
   with open(eff_points_file, 'w') as f:
