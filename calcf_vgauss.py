@@ -127,7 +127,6 @@ force_points_file=args.outeffforcefile
 force_points_file_comb=args.outcombeffforcefile
 force_points_file1=args.outeffforcefile1
 force_points_file2=args.outeffforcefile2
-force_bin_file=args.outbinforcefile
 temp=args.temp
 skip=args.skip
 kb=args.kb
@@ -412,7 +411,8 @@ if do_hills_bias:
 internalf=1.0
 if do_internalf:
   internalf=0.0
-  print ("The force for each frame read from file (through READ_APP_FORCE or -colvarbias_column) is the internal force: FCAM not applied, mean forces are calculated as the local average of the internal forces") 
+  print ("The force for each frame read from file (through READ_APP_FORCE or -colvarbias_column) is the ") 
+  print ("internal force: FCAM not applied, mean forces are calculated as the local average of the internal forces") 
   if colvarbias_column<=1:
     print ("ERROR: both total and applied force must be provided to evaluate the internal force; -colvarbias_column must be larger than 1")
     sys.exit()    
@@ -420,7 +420,8 @@ if do_internalf:
 if read_gfile==False:
   if do_hills_bias==False:
     calc_force_eff=False
-    print ("NOTE: no option for reading applied forces from files or calculating them through HILLS files was selected: mean forces on effective points will not be calculated")
+    print ("NOTE: no option for reading applied forces from files or calculating them through") 
+    print ("HILLS files was selected: mean forces on effective points will not be calculated")
 
 if ndim==0:
   print ("ERROR: number of variables is zero, please provide some to continue")
@@ -441,7 +442,7 @@ if read_gfile:
 
 if do_hills_bias:
   with open(bias_grad_file, 'w') as f:
-      f.write("# Time, grad,Gaussenergy,rep \n")
+      f.write("# Time, grad, Gaussenergy, numhill, trh, index, replica \n")
 
 if calc_epoints:
   with open(eff_points_file, 'w') as f:
