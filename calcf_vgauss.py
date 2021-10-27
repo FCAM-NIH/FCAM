@@ -10,7 +10,7 @@ def parse():
     parser.add_argument("-if", "--inputfile", \
                         help="input file for analysis", \
                         type=str, required=True)
-    parser.add_argument("-temp", "--temp", help="Temperature (default is in Kelvin)", \
+    parser.add_argument("-temp", "--temp", help="Temperature (required)", \
                         default=-1.0,type=float, required=False)
     parser.add_argument("-skip", "--skip", help="skip points when calculating forces (default 1)", \
                         default=1,type=int, required=False)
@@ -159,6 +159,7 @@ elif str(units)=="kcal":
   kb=0.0019858775 
 elif kb<0:
     print ("ERROR: please specify either the units (-units) or the value of the Boltzmann factor (-kb option)")
+    sys.exit()
 
 if trajfraction1>=1.0 or trajfraction1<0.0:
   print ("ERROR: please select a trajectory starting point between 0 and 1")  
@@ -1019,7 +1020,9 @@ if read_efile:
          else:          
            colvareffarray=np.concatenate((colvareffarray,tryarray),axis=0)
      except IOError:
-         pass
+         print("ERROR: not valid effective file (tip: check that input file name is correct)")
+         sys.exit()
+
   nepoints=len(colvareffarray)
   colvarseff=np.zeros((nepoints,ndim))
   neffpoints=1
@@ -1169,7 +1172,7 @@ if do_label:
 if read_ffile:
   print ("Reading effective points and forces from external file...")
   if nffiles>1:
-    print ("Reading forces arising from multiple simulations.")
+    print ("Reading forces arising from ",nffiles," simulations.")
     print ("Note that each file must correspond to forces calculated on the same points,")
     print ("thereby the files must have the same length.")
   for n in range(0,nffiles):
@@ -1220,7 +1223,8 @@ if read_ffile:
            for j in range(0,ndim):
               grad[0:neffpoints,j]=grad[0:neffpoints,j]+gradr[0:neffpoints,j]*weightr[0:neffpoints,j]
      except IOError:
-         pass
+         print("ERROR: not valid gradient file (tip: check that input file names are correct)")
+         sys.exit() 
   for j in range(0,ndim):
      grad[0:neffpoints,j]=np.where(weighttot[0:neffpoints,j]>0,grad[0:neffpoints,j]/(weighttot[0:neffpoints,j]),0)
   for i in range(0,neffpoints):
