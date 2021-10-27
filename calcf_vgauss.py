@@ -230,12 +230,12 @@ for line in f:
           has_a=False
           nact=0 
           for i in range (0,nparts):
-             if str(parts[i])=="HILLS_CVS": 
+             if str(parts[i])=="HILLS_CVS-CLS": 
                la=i
                has_a=True
                nafields=nafields+1
           if has_a==False or nafields>1:
-            print ("ERROR, HILLS_CVS not specified or specified more than once on a single line")
+            print ("ERROR, HILLS_CVS-CLS not specified or specified more than once on a single line")
             sys.exit()
           for i in range (la+1,nparts):
              if str(parts[i])=="COLVAR_FILE" or str(parts[i])=="HILLS_FILE":
@@ -277,7 +277,7 @@ for line in f:
                has_a=True
                nafields=nafields+1
           if has_a==False or nafields>1:
-            print ("ERROR, HILLS_CVS not specified or specidied more than once on a single line")
+            print ("ERROR, HILLS_CVS-CLS not specified or specidied more than once on a single line")
             sys.exit()
           for i in range (la+1,nparts):
              if str(parts[i])=="COLVAR_FILE" or str(parts[i])=="HILLS_FILE":
@@ -332,9 +332,10 @@ for line in f:
         else:
           periodic.append(0)
       ndim=ndim+1       
-    if str(parts[0])=="READ_APP_FORCE":
+    if str(parts[0])=="READ_BIAS_GRAD_TRJ":
       if colvarbias_column>0:
-         print ("ERROR: you are reading the biasing forces two times; from a file (through READ_APP_FORCE) and also from the COLVAR_FILE (through -colvarbias_column). Select just the pertinent option. ")
+         print ("ERROR: you are reading the biasing forces two times; from a file (through READ_BIAS_GRAD_TRJ)") 
+         print ("and also from the COLVAR_FILE (through -colvarbias_column). Select just the pertinent option. ")
          sys.exit()  
       if ngfiles==0:
         gfile=[str(parts[1])] 
@@ -351,7 +352,7 @@ for line in f:
       if nefiles>0:
         efile.append(str(parts[1])) 
       nefiles=nefiles+1  
-    if str(parts[0])=="READ_FORCE":
+    if str(parts[0])=="READ_GRAD_PMF":
       if nffiles==0:
         ffile=[str(parts[1])]
         read_ffile=True        
@@ -412,7 +413,7 @@ if do_hills_bias:
 internalf=1.0
 if do_internalf:
   internalf=0.0
-  print ("The force for each frame read from file (through READ_APP_FORCE or -colvarbias_column) is the ") 
+  print ("The force for each frame read from file (through READ_BIAS_GRAD_TRJ or -colvarbias_column) is the ") 
   print ("internal force: FCAM not applied, mean forces are calculated as the local average of the internal forces") 
   if colvarbias_column<=1:
     print ("ERROR: both total and applied force must be provided to evaluate the internal force; -colvarbias_column must be larger than 1")
