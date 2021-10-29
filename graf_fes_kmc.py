@@ -164,6 +164,7 @@ elif str(units)=="kcal":
   kb=0.0019858775
 elif kb<0:
     print ("ERROR: please specify either the units (-units) or the value of the Boltzmann factor (-kb option)")
+    sys.exit() 
 
 if do_cutoff:
   nearest=False
