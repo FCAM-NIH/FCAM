@@ -1,0 +1,8 @@
+Input read
+Requested just derivation of effective points (e.g. GRID on which mean forces will be evaluated) and nothing else
+NOTE: no option for reading applied forces from files or calculating them through
+HILLS files was selected: mean forces on effective points will not be calculated
+NUMBER OF POINTS FOR WALKER  0 :  50001
+NUMBER OF POINTS FOR WALKER  1 :  50001
+Calculating effective points...
+--- 33.213299036026 seconds ---

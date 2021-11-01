@@ -1,2 +1,2 @@
-COLVAR_FILE meta.1.equil.colvars.traj
+COLVAR_FILE meta.1.equil.colvars.traj 
 CV-CL 4 -180  180 360 PERIODIC

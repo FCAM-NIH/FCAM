@@ -1,0 +1,3 @@
+HILLS_FILE meta.1.equil.colvars.meta2.hills.traj2 COLVAR_FILE ../../buta_1d/traj2/meta.1.equil.colvars.traj2 HILLS_CVS-CLS 4 
+CV-CL 4 -180  180 360 PERIODIC
+READ_EPOINTS ../../buta_1d/results/eff_points.out 

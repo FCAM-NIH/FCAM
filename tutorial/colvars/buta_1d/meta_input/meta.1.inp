@@ -1,0 +1,108 @@
+# NAMD i/o file
+
+set sys meta.1
+set nsteps 10000000000  
+
+# --- integration ---
+numsteps             $nsteps
+timestep             1.0
+firsttimestep        0
+
+# --- input files ---
+paraTypeCharmm       on
+parameters           par_all27_prot_lipid.prm 
+structure            buta.xpsf 
+coordinates          mini_ppn_sod.equil.coor 
+bincoordinates       equil_ppn_sod.1.equil.rst.coor 
+temperature          298
+
+# --- output files ---
+binaryoutput         no
+outputname           $sys.equil
+restartname          $sys.equil.rst
+restartfreq          10000
+restartsave          no
+binaryrestart        yes
+DCDfile              $sys.equil.dcd
+DCDfreq              1000
+DCDUnitCell          yes
+
+# --- stdout options ---
+outputEnergies       500
+mergeCrossterms      no
+outputMomenta        0
+outputPressure       0
+outputTiming         500
+
+# --- langevin options ---
+langevin             on
+langevinTemp         298
+langevinDamping      1
+langevinHydrogen     off
+
+# --- pressure ---
+useGroupPressure     yes
+useFlexibleCell      no
+LangevinPiston       on
+LangevinPistonTarget 1.01325
+LangevinPistonPeriod 200
+LangevinPistonDecay  50
+LangevinPistonTemp   298
+
+# --- constraints ---
+rigidBonds           none
+rigidTolerance       0.00000001
+rigidIterations      100
+useSettle            on
+
+# -- non-bonded interactions ---
+exclude              scaled1-4
+1-4scaling           1.0
+switching            on
+switchdist           10
+cutoff               12
+dielectric           1.0
+PME                  yes
+PMETolerance         0.000001
+PMEInterpOrder       6
+PMEGridSizeX         80
+PMEGridSizeY         80
+PMEGridSizeZ         80
+
+# -- MTS --
+nonbondedFreq        1
+fullElectFrequency   1
+
+# --- non-bonded list ---
+stepspercycle        10
+pairlistdist         14
+pairlistsPerCycle    2
+pairlistShrink       0.01
+pairlistGrow         0.01
+pairlistTrigger      0.30
+
+# --- boundary options ---
+extendedSystem       equil_ppn_sod.1.equil.rst.xsc
+XSTfile              $sys.equil.xst
+cellOrigin            0    0   0
+cellBasisVector1     36    0   0
+cellBasisVector2      0   36   0
+cellBasisVector3      0    0  36
+XSTfreq              500
+wrapWater            on
+wrapAll              on
+wrapNearest          on
+
+colvars              yes
+colvarsConfig        dihe.inp
+
+tclForces            on
+tclForcesScript      tcl.inp
+
+
+# --- constraints ---
+constraints          off
+#consexp              2
+#consref              $sys.init.pdb
+#conskfile            $sys.cons.$i.pdb
+#conskcol             B

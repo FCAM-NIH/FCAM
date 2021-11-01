@@ -1,0 +1,56 @@
+# TCL script for center-of-mass constraint
+
+set numatoms 15
+
+set cace {}
+for { set i 1 } { $i <= $numatoms } { incr i } {
+lappend cace $i
+}
+
+# group index
+set c [addgroup $cace]
+
+# output  
+set t 0
+set freq 500
+set outfilename tcl.out
+open $outfilename w
+
+# force/energy calculation
+proc calcforces {} {
+
+  global t freq k c outfilename
+
+  loadcoords coordinate
+
+  # overall COM constraint (cace ion)
+  set k  10.2 
+  set x0 0.0
+  set y0 0.0
+  set z0 0.0  
+
+  set r $coordinate($c)
+  set rx [lindex $r 0]
+  set ry [lindex $r 1]
+  set rz [lindex $r 2]
+
+  set f {}
+  set fx [expr $k*($x0-$rx)]
+  set fy [expr $k*($y0-$ry)]
+  set fz [expr $k*($z0-$rz)]
+  lappend f $fx $fy $fz
+  addforce $c $f
+
+  set ene [expr 0.5*$k*($z0-$rz)*($z0-$rz)+0.5*$k*($x0-$rx)*($x0-$rx)+0.5*$k*($y0-$ry)*($y0-$ry)] 
+  addenergy $ene
+
+  if { $t % $freq == 0 } {
+     set outfile [open $outfilename a]
+     puts $outfile "$t $rx $ry $rz $ene $fx $fy $fz" 
+     close $outfile
+  }
+
+  incr t
+  return
+}
+
