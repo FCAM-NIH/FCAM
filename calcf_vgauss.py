@@ -153,14 +153,6 @@ if colvarbias_column>0:
     print ("ERROR: if you are using colvars please insert the option -colvars ")
     sys.exit()
 
-if str(units)=="kj":
-  kb=0.00831446261815324
-elif str(units)=="kcal":  
-  kb=0.0019858775 
-elif kb<0 and do_just_eff_points==False and do_just_hills_bias==False:
-    print ("ERROR: please specify either the units (-units) or the value of the Boltzmann factor (-kb option)")
-    sys.exit()
-
 if trajfraction1>=1.0 or trajfraction1<0.0:
   print ("ERROR: please select a trajectory starting point between 0 and 1")  
   sys.exit()
@@ -374,6 +366,14 @@ for line in f:
       nffiles=nffiles+1
 
 print ("Input read")
+
+if str(units)=="kj":
+  kb=0.00831446261815324
+elif str(units)=="kcal":
+  kb=0.0019858775
+elif kb<0 and do_just_eff_points==False and do_just_hills_bias==False and read_ffile==False:
+    print ("ERROR: please specify either the units (-units) or the value of the Boltzmann factor (-kb option)")
+    sys.exit()
 
 if colvarbias_column>0:
   read_gfile=True
