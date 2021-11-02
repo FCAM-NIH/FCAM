@@ -147,6 +147,8 @@ else:
   hcutoff=6.25 # cutoff for Gaussians
 wcutoff=18.75 # cutoff for Gaussians in weight calculation
 
+use_force=1.0
+
 if colvarbias_column>0:
   if do_colvars==False:
     print ("ERROR: reading forces from COLVAR files is supported only for colvars ")
@@ -324,11 +326,13 @@ for line in f:
         else:
           periodic.append(0)
       ndim=ndim+1       
-    if str(parts[0])=="READ_BIAS_GRAD_TRJ":
+    if str(parts[0])=="READ_BIAS_GRAD_TRJ" or str(parts[0])=="READ_BIAS_FORCE_TRJ":
+      if str(parts[0])=="READ_BIAS_FORCE_TRJ":
+        use_force=-1.0 
       if colvarbias_column>0:
-         print ("ERROR: you are reading the biasing forces two times; from a file (through READ_BIAS_GRAD_TRJ)") 
-         print ("and also from the COLVAR_FILE (through -colvarbias_column). Select just the pertinent option. ")
-         sys.exit()  
+        print ("ERROR: you are reading the biasing forces two times; from a file (through READ_BIAS_GRAD_TRJ)") 
+        print ("and also from the COLVAR_FILE (through -colvarbias_column). Select just the pertinent option. ")
+        sys.exit()  
       if ngfiles==0:
         gfile=[str(parts[1])] 
         read_gfile=True
@@ -843,11 +847,11 @@ if read_gfile:
       totpoints=0
       for k in range (0,ncolvars):
          if k==0:
-           gradv=[gradarray[0][totpoints:totpoints+npoints[k],1:ndim+1]]
+           gradv=[use_force*gradarray[0][totpoints:totpoints+npoints[k],1:ndim+1]]
            if do_gefilter:
              gaussenergy=[gradarray[0][totpoints:totpoints+npoints[k],ndim+1]]
          if k>0:
-           gradv.append(gradarray[0][totpoints:totpoints+npoints[k],1:ndim+1])
+           gradv.append(use_force*gradarray[0][totpoints:totpoints+npoints[k],1:ndim+1])
            if do_gefilter:
              gaussenergy.append(gradarray[0][totpoints:totpoints+npoints[k],ndim+1]) 
          totpoints=totpoints+npoints[k]
@@ -859,7 +863,7 @@ if read_gfile:
            if npoints[k]!=len(gradarray[k]):
              print ("ERROR: gradient file doesn't match COLVAR file")
              sys.exit()
-           gradv=[gradarray[k][:,1:ndim+1]]
+           gradv=[use_force*gradarray[k][:,1:ndim+1]]
            if do_gefilter:
              gaussenergy=[gradarray[k][:,ndim+1]]
          if k>0:
@@ -867,7 +871,7 @@ if read_gfile:
            if npoints[k]!=len(gradarray[k]):
              print ("ERROR: gradient file doesn't match COLVAR file")
              sys.exit()
-           gradv.append(gradarray[k][:,1:ndim+1])
+           gradv.append(use_force*gradarray[k][:,1:ndim+1])
            if do_gefilter:
              gaussenergy.append(gradarray[k][:,ndim+1])
   if colvarbias_column>0:
