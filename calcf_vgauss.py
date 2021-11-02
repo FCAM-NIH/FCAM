@@ -25,6 +25,8 @@ def parse():
                         default=-1,type=float, required=False)
     parser.add_argument("-wf", "--widthfactor", help="Scaling factor of the width (wfact) to assign the force constant (k=kb*temp*(wfact*wfact)/(width*width); default is 1 (width is read in the GRID defined in the input file)", \
                         default=1.0,type=float, required=False)
+    parser.add_argument("-colv_time_prec", "--colv_time_prec", help="Precision for reading the time column in COLVAR_FILE and HILLS_FILE", \
+                        default=-1,type=int, required=False)
     parser.add_argument("-colvarbias_column", "--read_colvarbias_column", help="read biasing force from COLVAR_FILE at a specified number of columns after the associated CV (e.g. would be 1 if it is right after the CV)", \
                         default=-1,type=int, required=False)
     parser.add_argument("-colvars","--colvars", \
@@ -132,6 +134,7 @@ skip=args.skip
 kb=args.kb
 units=args.units
 widthfact=args.widthfactor
+colv_prec=args.colv_time_prec
 colvarbias_column=args.read_colvarbias_column
 tgefilt=args.valgefilt
 nfrestart=args.numframerest
@@ -781,8 +784,18 @@ if do_hills_bias:
        numhills=0 
        for i in range(0,npoints[k]):
           whichhills_old=whichhills
-          if i>0 and colvarsarray[k][i,0]<colvarsarray[k][i-1,0]:
-            if hillsarray[k][numhills-1,0]>hillsarray[k][numhills,0]: 
+          if colv_prec>0:
+            current_colv_time=np.round(colvarsarray[k][i,0],colv_prec)
+            prev_colv_time=np.round(colvarsarray[k][i-1,0],colv_prec)
+            current_hill_time=np.round(hillsarray[k][numhills,0],colv_prec)
+            prev_hill_time=np.round(hillsarray[k][numhills-1,0],colv_prec)
+          else:
+            current_colv_time=colvarsarray[k][i,0]
+            prev_colv_time=colvarsarray[k][i-1,0]
+            current_hill_time=hillsarray[k][numhills,0]
+            prev_hill_time=hillsarray[k][numhills-1,0]
+          if i>0 and current_colv_time<prev_colv_time:
+            if prev_hill_time>current_hill_time: 
               index=trh
               whichhills_old=np.where(dvec<trh,1,0)
           if do_large_hfreq:
@@ -794,7 +807,10 @@ if do_hills_bias:
             trh=np.amin(2+index+np.array(np.where(hillsarray[k][index+2:nhills[k],0]-hillsarray[k][index+1:nhills[k]-1,0]<0)))
           else:
             trh=nhills[k]
-          whichhills=np.where(hillsarray[k][:,0]<=colvarsarray[k][i,0],1,0)
+          if colv_prec>0:
+            whichhills=np.where(np.round(hillsarray[k][:,0],colv_prec)<=np.round(colvarsarray[k][i,0],colv_prec),1,0) 
+          else:
+            whichhills=np.where(hillsarray[k][:,0]<=colvarsarray[k][i,0],1,0)
           whichhills=np.where(dvec>=trh,0,whichhills)
           whichhills=np.where(whichhills_old>0,1,whichhills)
           numhills=np.sum(whichhills)
@@ -889,8 +905,10 @@ if nfrestart>0:
      getpoints=np.where(colvarsarray[i][1:npoints[i],0]<=colvarsarray[i][0:npoints[i]-1,0])
      getipoints=getpoints[0]-nfrestart+1
      if do_backrestart:
+       print ("Removing ",nfrestart," frames before trajectory restart for traj ",i)
        getfpoints=getpoints[0]+1
      else:
+       print ("Removing ",nfrestart," frames before and ", nfrestart," frames after trajectory restart for traj ",i)
        getfpoints=getpoints[0]+nfrestart+1
      for j in range (0,getpoints[0].size): 
         if getipoints[j]<0:
@@ -926,7 +944,7 @@ if nfrestart>0:
      
   #Debug
   #for i in range (0,npoints[i]):
-  #   print colvarsarray[0][i,0],colvarsarray[0][i,1],colvarsarray[0][i,2],gradv[0][i,0],gradv[0][i,1] 
+  #   print (colvarsarray[0][i,0],colvarsarray[0][i,1],colvarsarray[0][i,2],gradv[0][i,0],gradv[0][i,1]) 
   #sys.exit()     
 
 
