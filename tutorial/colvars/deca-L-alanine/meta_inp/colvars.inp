@@ -1,0 +1,117 @@
+colvarsTrajFrequency 5
+
+colvar {
+  name drmsd_alpha_pi
+  width 0.025
+
+  outputTotalForce   yes
+  outputAppliedForce yes
+
+  rmsd {
+    componentCoeff      -1
+    atoms {
+        atomNumbers { 10 20 30 40 50 60 70 80 90 92 }
+    }
+    refpositionsfile ../Common/da.min.xyz
+  }
+
+  rmsd {
+    componentCoeff        1
+    atoms {
+        atomNumbers { 10 20 30 40 50 60 70 80 90 92 }
+    }
+    refpositionsfile ../Common/pi-ideal.xyz 
+  }
+  lowerBoundary    -5.0
+  upperBoundary     5.0
+}
+
+colvar {
+  name drmsd_alpha_310
+  width 0.025
+  
+  outputTotalForce   yes
+  outputAppliedForce yes
+  
+  rmsd {
+    componentCoeff      -1
+    atoms {
+        atomNumbers { 11  21  31  41  51  61  71  81  91  93 }
+    }
+    refpositionsfile ../Common/da.min.xyz
+  }
+  
+  rmsd {
+    componentCoeff        1
+    atoms {
+        atomNumbers { 11  21  31  41  51  61  71  81  91  93 }
+    }
+    refpositionsfile ../Common/310turn-ideal.xyz
+  }
+  lowerBoundary    -5.0
+  upperBoundary     5.0
+}
+
+colvar {
+  name drmsd_pi_310
+  width 1
+
+  outputTotalForce   yes
+  outputAppliedForce yes
+
+  rmsd {
+    componentCoeff      -1
+    atoms {
+        atomNumbers { 4  14  24  34  44  54  64  74  84  99 }
+    }
+    refpositionsfile ../Common/pi-ideal.xyz
+  }
+
+  rmsd {
+    componentCoeff        1
+    atoms {
+        atomNumbers { 4  14  24  34  44  54  64  74  84  99 }
+    }
+    refpositionsfile ../Common/310turn-ideal.xyz
+  }
+}
+
+colvar {
+   name endToEnd
+
+   width 0.1
+
+   outputTotalForce   yes
+   outputAppliedForce yes
+
+   distance {
+      group1 {
+atomNumbers { 92 }
+      }
+      group2 {
+atomNumbers { 10 }
+      }
+   }
+  lowerBoundary     5.0
+  upperBoundary     40.0
+  lowerWall 11
+  lowerWallConstant 10
+  upperWall 32.0
+  upperWallConstant 10
+}
+
+metadynamics {
+    name meta1
+    colvars              endToEnd 
+    hillWeight           0.005
+    hillWidth            10.0
+    newHillFrequency     1000
+    useGrids             on
+    keepHills off
+    writeHillsTrajectory on
+    keepFreeEnergyFiles on
+    useHillsReflection   on
+    reflectionLowLimit   11
+    reflectionUpLimit    32
+}
+

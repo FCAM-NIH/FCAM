@@ -1,0 +1,78 @@
+# NAMD i/o file
+
+set sys meta.1
+set nsteps 10000000000  
+set pbc no
+
+# --- integration ---
+numsteps             $nsteps
+timestep             0.5
+firsttimestep        0
+
+# --- input files ---
+paraTypeCharmm      on
+structure           ../Common/da.psf
+parameters          ../Common/par_all22_prot.inp
+coordinates         ../Common/da.coor.pdb
+
+#bincoordinates       equil_ppn_sod.1.equil.rst.coor 
+temperature          298
+
+# --- output files ---
+binaryoutput         no
+outputname           $sys.equil
+restartname          $sys.equil.rst
+restartfreq          10000
+restartsave          no
+binaryrestart        yes
+DCDfile              $sys.equil.dcd
+DCDfreq              1000
+DCDUnitCell          yes
+
+# --- stdout options ---
+outputEnergies       500
+mergeCrossterms      no
+outputMomenta        0
+outputPressure       0
+outputTiming         500
+
+# --- constraints ---
+
+# -- non-bonded interactions ---
+1-4scaling              1.0
+exclude                 scaled1-4
+rigidBonds              none
+useSettle               on
+
+switchdist              10.0
+cutoff                  12.0
+pairlistdist            14.0
+fullElectFrequency      1
+nonbondedFreq           1
+
+hgroupcutoff         2.8
+switching            on
+
+# CONSTANT-T
+#
+langevin             on
+langevintemp         298.0
+langevindamping      1.0 
+#
+
+# comm
+
+COMmotion               no
+zeroMomentum            yes
+
+# parallelism
+
+stepspercycle        16
+splitpatch           hydrogen
+margin               2.0
+
+# --- boundary options ---
+
+colvars              yes
+colvarsConfig        colvars.inp
+
