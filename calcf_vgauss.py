@@ -781,30 +781,44 @@ if do_hills_bias:
      dvec=np.arange(nhills[k])
      if nactive[k]>0:
        countinter=0
-       numhills=0 
+       numhills=0
+       current_hill_time=0.0
+       prev_hill_time=-1.0
+       current_colv_time=0.0
+       prev_colv_time=-1.0 
        for i in range(0,npoints[k]):
           whichhills_old=whichhills
           if colv_prec>0:
             current_colv_time=np.round(colvarsarray[k][i,0],colv_prec)
-            prev_colv_time=np.round(colvarsarray[k][i-1,0],colv_prec)
-            current_hill_time=np.round(hillsarray[k][numhills,0],colv_prec)
-            prev_hill_time=np.round(hillsarray[k][numhills-1,0],colv_prec)
+            if i>0: 
+              prev_colv_time=np.round(colvarsarray[k][i-1,0],colv_prec)
+            if numhills>0 and numhills<nhills[k]: 
+              current_hill_time=np.round(hillsarray[k][numhills,0],colv_prec)
+              prev_hill_time=np.round(hillsarray[k][numhills-1,0],colv_prec)
           else:
             current_colv_time=colvarsarray[k][i,0]
-            prev_colv_time=colvarsarray[k][i-1,0]
-            current_hill_time=hillsarray[k][numhills,0]
-            prev_hill_time=hillsarray[k][numhills-1,0]
+            if i>0: 
+              prev_colv_time=colvarsarray[k][i-1,0]
+            if numhills>0 and numhills<nhills[k]:
+              current_hill_time=hillsarray[k][numhills,0]
+              prev_hill_time=hillsarray[k][numhills-1,0]
           if i>0 and current_colv_time<prev_colv_time:
-            if prev_hill_time>current_hill_time: 
+            if numhills>0 and numhills<nhills[k] and prev_hill_time>current_hill_time: 
               index=trh
               whichhills_old=np.where(dvec<trh,1,0)
           if do_large_hfreq:
             if numhills>=trh:
               index=trh
               whichhills_old=np.where(dvec<trh,1,0)
-          trh=1+index+np.array(np.where(hillsarray[k][index+1:nhills[k],0]-hillsarray[k][index:nhills[k]-1,0]<0))
+          if colv_prec>0:
+            trh=1+index+np.array(np.where(np.round(hillsarray[k][index+1:nhills[k],0],colv_prec)-np.round(hillsarray[k][index:nhills[k]-1,0],colv_prec)<0))
+          else:
+            trh=1+index+np.array(np.where(hillsarray[k][index+1:nhills[k],0]-hillsarray[k][index:nhills[k]-1,0]<0))
           if trh.size!=0:
-            trh=np.amin(2+index+np.array(np.where(hillsarray[k][index+2:nhills[k],0]-hillsarray[k][index+1:nhills[k]-1,0]<0)))
+            if colv_prec>0:
+              trh=np.amin(2+index+np.array(np.where(np.round(hillsarray[k][index+2:nhills[k],0],colv_prec)-np.round(hillsarray[k][index+1:nhills[k]-1,0],colv_prec)<0)))
+            else:
+              trh=np.amin(2+index+np.array(np.where(hillsarray[k][index+2:nhills[k],0]-hillsarray[k][index+1:nhills[k]-1,0]<0)))
           else:
             trh=nhills[k]
           if colv_prec>0:
