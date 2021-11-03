@@ -1,0 +1,18 @@
+RESTART
+INCLUDE FILE=plumed_be-common.dat
+
+#METAD activates metadynamics
+#ARG indicates variables to enhance (omega & psi)
+#PACE indicates frequency of Gaussian deposition is 1000 time step (2ps)
+#HEIGHT indicates that height of the Gaussians is 0.2 kJ/mol
+#SIGMA indicates the width of the Gaussians on the biased cv, respectively
+
+be: METAD ARG=cv1 PACE=1000 HEIGHT=0.2 SIGMA=0.17
+
+#print in other file the values of the CVS and the bias potential
+#STRIDE frequency of output
+#ARG things to print, omega, psi
+#FILE, name of the file to output; COLVAR
+
+DUMPFORCES ARG=cv1,cv2 STRIDE=500 FILE=forces
+PRINT STRIDE=500 ARG=cv1,cv2 FILE=COLVAR
