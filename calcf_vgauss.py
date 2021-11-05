@@ -150,7 +150,7 @@ else:
   hcutoff=6.25 # cutoff for Gaussians
 wcutoff=18.75 # cutoff for Gaussians in weight calculation
 
-use_force=1.0
+#use_force=1.0
 
 if colvarbias_column>0:
   if do_colvars==False:
@@ -186,7 +186,7 @@ nfcomp=0
 read_gfile=False
 read_efile=False
 read_ffile=False
-has_hills=False
+#has_hills=False
 nactive=0
 cfile='none'
 hfile='none'
@@ -201,6 +201,9 @@ for line in f:
     ncfiles=0
     nhfiles=0
     nafields=0 
+    nuscvfields=0
+    nuskfields=0
+    nuscfields=0
     for i in range (0,nparts):
        if str(parts[i])=="COLVAR_FILE": 
          lc=i
@@ -212,6 +215,75 @@ for line in f:
     if has_c:
       if ncolvars==0:
         cfile=[str(parts[lc+1])]
+
+        has_us=False
+        for i in range (0,nparts):
+           if str(parts[i])=="US_CVS-CLS":
+             lus=i
+             has_us=True     
+             nuscvfields=nuscvfields+1
+        if nuscvfields>1:
+          print ("ERROR, US_CVS-CLS must be specified just one time on a single line")
+          sys.exit()
+        if has_us:
+          nact=0
+          do_us=[True] 
+          for i in range (lus+1,nparts):
+             if str(parts[i])=="COLVAR_FILE" or str(parts[i])=="US_K" or str(parts[i])=="US_C":
+               break
+             nact=nact+1
+          nactive=[nact]
+          pippo=np.zeros((nactive[ncolvars]),dtype=np.int64)
+          npippo=0
+          for i in range(lus+1,nparts):
+             if str(parts[i])=="COLVAR_FILE" or str(parts[i])=="US_K" or str(parts[i])=="US_C":
+               break
+             pippo[npippo]=int(parts[i])-1
+             npippo=npippo+1 
+          a_cvs=[pippo]
+
+          has_us_k=False
+          for i in range (0,nparts):
+             if str(parts[i])=="US_K":
+               lusk=i
+               has_us_k=True
+               nuskfields=nuskfields+1
+          if has_us_k==False or nuskfields>1:
+            print ("ERROR, US_K not specified or specified more than one time on a single line")
+            sys.exit()
+          if has_us_k:
+            pippo=np.zeros((nactive[ncolvars]),dtype=np.int64)
+            npippo=0
+            for i in range(lusk+1,nparts):
+               if str(parts[i])=="COLVAR_FILE" or str(parts[i])=="US_CVS-CLS" or str(parts[i])=="US_C":
+                 break
+               pippo[npippo]=int(parts[i])-1
+               npippo=npippo+1
+            k_cvs=[pippo]
+
+          has_us_c=False
+          for i in range (0,nparts):
+             if str(parts[i])=="US_C":
+               lusc=i
+               has_us_c=True
+               nuscfields=nuscfields+1
+          if has_us_c==False or nuscfields>1:
+            print ("ERROR, US_C not specified or specified more than one time on a single line")
+            sys.exit()
+          if has_us_c:
+            pippo=np.zeros((nactive[ncolvars]),dtype=np.int64)
+            npippo=0
+            for i in range(lusc+1,nparts):
+               if str(parts[i])=="COLVAR_FILE" or str(parts[i])=="US_CVS-CLS" or str(parts[i])=="US_K":
+                 break
+               pippo[npippo]=int(parts[i])-1
+               npippo=npippo+1
+            c_cvs[pippo]
+
+        else:
+          do_us=[False]
+
+
         has_h=False 
         for i in range (0,nparts):
            if str(parts[i])=="HILLS_FILE":
@@ -222,6 +294,9 @@ for line in f:
           print ("ERROR, HILLS_FILE must be specified just one time on a single line")
           sys.exit()
         if has_h:
+          if has_us or has_us_k or has_us_c:
+            print ("ERROR, reading HILLS_FILE is not compatible with US")
+            sys.exit()
           has_hills=[True]
           hfile=[str(parts[lh+1])]  
           has_a=False
@@ -250,10 +325,80 @@ for line in f:
         else:
           has_hills=[False]
           hfile=['none']
+        if has_h==False and has_us=False:
           nactive=[int(0)] 
           a_cvs=[int(-1)]
+
       if ncolvars>0:
-        cfile.append(str(parts[lc+1]))
+        cfile.append(str(parts[lc+1])) 
+
+        has_us=False
+        for i in range (0,nparts):
+           if str(parts[i])=="US_CVS-CLS":
+             lus=i
+             has_us=True  
+             nuscvfields=nuscvfields+1
+        if nuscvfields>1:
+          print ("ERROR, US_CVS-CLS must be specified just one time on a single line")
+          sys.exit()
+        if has_us:
+          nact=0  
+          do_us.append(True) 
+          for i in range (lus+1,nparts):
+             if str(parts[i])=="COLVAR_FILE" or str(parts[i])=="US_K" or str(parts[i])=="US_C":
+               break
+             nact=nact+1
+          nactive.append(nact) 
+          pippo=np.zeros((nactive[ncolvars]),dtype=np.int64)
+          npippo=0  
+          for i in range(lus+1,nparts):
+             if str(parts[i])=="COLVAR_FILE" or str(parts[i])=="US_K" or str(parts[i])=="US_C":
+               break
+             pippo[npippo]=int(parts[i])-1
+             npippo=npippo+1
+          a_cvs.append(pippo)
+
+          has_us_k=False
+          for i in range (0,nparts):
+             if str(parts[i])=="US_K":
+               lusk=i
+               has_us_k=True
+               nuskfields=nuskfields+1
+          if has_us_k==False or nuskfields>1:
+            print ("ERROR, US_K not specified or specified more than one time on a single line")
+            sys.exit()    
+          if has_us_k: 
+            pippo=np.zeros((nactive[ncolvars]),dtype=np.int64)
+            npippo=0 
+            for i in range(lusk+1,nparts):    
+               if str(parts[i])=="COLVAR_FILE" or str(parts[i])=="US_CVS-CLS" or str(parts[i])=="US_C":
+                 break 
+               pippo[npippo]=int(parts[i])-1
+               npippo=npippo+1    
+            k_cvs.append(pippo)
+            
+          has_us_c=False
+          for i in range (0,nparts):
+             if str(parts[i])=="US_C":
+               lusc=i
+               has_us_c=True
+               nuscfields=nuscfields+1
+          if has_us_c==False or nuscfields>1:
+            print ("ERROR, US_C not specified or specified more than one time on a single line")
+            sys.exit()
+          if has_us_c:    
+            pippo=np.zeros((nactive[ncolvars]),dtype=np.int64)
+            npippo=0
+            for i in range(lusc+1,nparts):
+               if str(parts[i])=="COLVAR_FILE" or str(parts[i])=="US_CVS-CLS" or str(parts[i])=="US_K":
+                 break
+               pippo[npippo]=int(parts[i])-1
+               npippo=npippo+1
+            c_cvs.append(pippo)
+            
+        else:
+          do_us.append(False)
+
         has_h=False
         for i in range (0,nparts):
            if str(parts[i])=="HILLS_FILE":
@@ -264,6 +409,9 @@ for line in f:
           print ("ERROR, HILLS_FILE must be specidied just one time on a single line")
           sys.exit()
         if has_h:
+          if has_us or has_us_k or has_us_c:
+            print ("ERROR, reading HILLS_FILE is not compatible with US")
+            sys.exit()
           has_hills.append(True)
           hfile.append(str(parts[lh+1]))
           has_a=False
@@ -292,9 +440,11 @@ for line in f:
         else:
           has_hills.append(False)
           hfile.append('none')
+        if has_h==False and has_us=False: 
           nactive.append(int(0))
           a_cvs.append(int(-1))
       ncolvars=ncolvars+1
+
     if str(parts[0])=="CV-CL":
       if ndim==0:
         whichcv=[int(parts[1])-1]
@@ -330,17 +480,25 @@ for line in f:
           periodic.append(0)
       ndim=ndim+1       
     if str(parts[0])=="READ_BIAS_GRAD_TRJ" or str(parts[0])=="READ_BIAS_FORCE_TRJ":
-      if str(parts[0])=="READ_BIAS_FORCE_TRJ":
-        use_force=-1.0 
+      #if str(parts[0])=="READ_BIAS_FORCE_TRJ":
+      #  use_force=-1.0 
       if colvarbias_column>0:
         print ("ERROR: you are reading the biasing forces two times; from a file (through READ_BIAS_GRAD_TRJ)") 
         print ("and also from the COLVAR_FILE (through -colvarbias_column). Select just the pertinent option. ")
         sys.exit()  
       if ngfiles==0:
+        if str(parts[0])=="READ_BIAS_FORCE_TRJ":
+          use_force=[-1.0]
+        else:
+          use_force=[1.0] 
         gfile=[str(parts[1])] 
         read_gfile=True
         do_hills_bias=False
       if ngfiles>0:
+        if str(parts[0])=="READ_BIAS_FORCE_TRJ":
+          use_force.append(-1.0)
+        else:
+          use_force.append(1.0)
         gfile.append(str(parts[1]))      
       ngfiles=ngfiles+1
     if str(parts[0])=="READ_EPOINTS":
@@ -524,7 +682,7 @@ iactive[:,:]=-1
 allfound=True
 for i in range (0,ncolvars):
    if nactive[i]>ndim:
-     print ("ERROR: number of HILLS_CVS-CLS larger than total number of CVS")
+     print ("ERROR: number of HILLS_CVS-CLS or US_CVS-CLS larger than total number of CVS")
      sys.exit() 
    for j in range (0,nactive[i]):
       if nactive[i]>0: 
@@ -538,7 +696,7 @@ for i in range (0,ncolvars):
             allfound=False 
 
 if allfound==False:
-  print ("ERROR: HILLS_CVS-CLS must be part of the CVS used for CV-CL")
+  print ("ERROR: HILLS_CVS-CLS or US_CVS-CLS must be part of the CVS used for CV-CL")
   sys.exit()
 
 # read the hills files
@@ -779,7 +937,7 @@ if do_hills_bias:
      trh=0
      index=0
      dvec=np.arange(nhills[k])
-     if nactive[k]>0:
+     if nactive[k]>0 and has_hills[k]:
        countinter=0
        numhills=0
        current_hill_time=0.0
@@ -863,6 +1021,9 @@ if do_hills_bias:
               f.write("%s " % " 0 ")
               f.write("%s \n" % (k))
 
+if do_umbrella_bias:
+
+
 # READ EXTERNAL FILE WITH GRADIENTS
        
 if read_gfile:
@@ -877,11 +1038,11 @@ if read_gfile:
       totpoints=0
       for k in range (0,ncolvars):
          if k==0:
-           gradv=[use_force*gradarray[0][totpoints:totpoints+npoints[k],1:ndim+1]]
+           gradv=[use_force[0]*gradarray[0][totpoints:totpoints+npoints[k],1:ndim+1]]
            if do_gefilter:
              gaussenergy=[gradarray[0][totpoints:totpoints+npoints[k],ndim+1]]
          if k>0:
-           gradv.append(use_force*gradarray[0][totpoints:totpoints+npoints[k],1:ndim+1])
+           gradv.append(use_force[0]*gradarray[0][totpoints:totpoints+npoints[k],1:ndim+1])
            if do_gefilter:
              gaussenergy.append(gradarray[0][totpoints:totpoints+npoints[k],ndim+1]) 
          totpoints=totpoints+npoints[k]
@@ -893,7 +1054,7 @@ if read_gfile:
            if npoints[k]!=len(gradarray[k]):
              print ("ERROR: gradient file doesn't match COLVAR file")
              sys.exit()
-           gradv=[use_force*gradarray[k][:,1:ndim+1]]
+           gradv=[use_force[k]*gradarray[k][:,1:ndim+1]]
            if do_gefilter:
              gaussenergy=[gradarray[k][:,ndim+1]]
          if k>0:
@@ -901,7 +1062,7 @@ if read_gfile:
            if npoints[k]!=len(gradarray[k]):
              print ("ERROR: gradient file doesn't match COLVAR file")
              sys.exit()
-           gradv.append(use_force*gradarray[k][:,1:ndim+1])
+           gradv.append(use_force[k]*gradarray[k][:,1:ndim+1])
            if do_gefilter:
              gaussenergy.append(gradarray[k][:,ndim+1])
   if colvarbias_column>0:
