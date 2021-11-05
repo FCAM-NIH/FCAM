@@ -35,9 +35,6 @@ def parse():
     parser.add_argument("-internalf","--internalforces", \
                         help="Provided free energy gradients are based on internal forces", \
                         default=False, dest='do_intern', action='store_true')
-    parser.add_argument("-calcmetaf","--calcmetabiasforce", \
-                        help="Calculate biasing forces of metadynamics from a HILLS file which stores the deposited Gaussian hills (TIME CV1 CV2... SIGMA_CV1 SIGMA_CV2... HEIGHT). By default metadynamics bias calculation is OFF", \
-                        default=False, dest='do_hbias', action='store_true')
     parser.add_argument("-noforce","--nocalcforce", \
                         help="Do not calculate forces. By default forces calculation is ON", \
                         default=True, dest='do_force', action='store_false')
@@ -109,7 +106,6 @@ args = parse()
 
 # Variables
 ifile=args.inputfile
-do_hills_bias=args.do_hbias
 do_colvars=args.do_colv
 do_internalf=args.do_intern
 do_label=args.do_label
@@ -150,6 +146,9 @@ else:
   hcutoff=6.25 # cutoff for Gaussians
 wcutoff=18.75 # cutoff for Gaussians in weight calculation
 
+do_hills_bias=False
+do_umbrella_bias=False
+
 #use_force=1.0
 
 if colvarbias_column>0:
@@ -186,7 +185,6 @@ nfcomp=0
 read_gfile=False
 read_efile=False
 read_ffile=False
-#has_hills=False
 nactive=0
 cfile='none'
 hfile='none'
@@ -226,6 +224,7 @@ for line in f:
           print ("ERROR, US_CVS-CLS must be specified just one time on a single line")
           sys.exit()
         if has_us:
+          do_umbrella_bias=True
           nact=0
           do_us=[True] 
           for i in range (lus+1,nparts):
@@ -294,6 +293,7 @@ for line in f:
           print ("ERROR, HILLS_FILE must be specified just one time on a single line")
           sys.exit()
         if has_h:
+          do_hills_bias=True 
           if has_us or has_us_k or has_us_c:
             print ("ERROR, reading HILLS_FILE is not compatible with US")
             sys.exit()
@@ -342,6 +342,7 @@ for line in f:
           print ("ERROR, US_CVS-CLS must be specified just one time on a single line")
           sys.exit()
         if has_us:
+          do_umbrella_bias=True
           nact=0  
           do_us.append(True) 
           for i in range (lus+1,nparts):
@@ -409,6 +410,7 @@ for line in f:
           print ("ERROR, HILLS_FILE must be specidied just one time on a single line")
           sys.exit()
         if has_h:
+          do_hills_bias=True 
           if has_us or has_us_k or has_us_c:
             print ("ERROR, reading HILLS_FILE is not compatible with US")
             sys.exit()
@@ -494,6 +496,7 @@ for line in f:
         gfile=[str(parts[1])] 
         read_gfile=True
         do_hills_bias=False
+        do_umbrella_bias=False
       if ngfiles>0:
         if str(parts[0])=="READ_BIAS_FORCE_TRJ":
           use_force.append(-1.0)
@@ -515,6 +518,7 @@ for line in f:
         read_ffile=True        
         read_efile=False
         do_hills_bias=False 
+        do_umbrella_bias=False
         calc_force_eff=False
         calc_epoints=False 
       if nffiles>0:
@@ -543,6 +547,7 @@ elif kb<0 and do_just_eff_points==False and do_just_hills_bias==False and read_f
 if colvarbias_column>0:
   read_gfile=True
   do_hills_bias=False
+  do_umbrella_bias=False
   if do_gefilter:
     print ("ERROR: filtering according to colvar energy match is not compatible with reading applied forces from colvar file (as those forces are expected to be exact)") 
     sys.exit() 
@@ -550,6 +555,7 @@ if colvarbias_column>0:
 if do_just_eff_points:
   calc_epoints=True
   do_hills_bias=False
+  do_umbrella_bias=False
   read_gfile=False
   read_efile=False
   read_ffile=False
@@ -559,6 +565,7 @@ if do_just_eff_points:
 if do_just_hills_bias:
   calc_epoints=False
   do_hills_bias=True
+  do_umbrella_bias=False
   read_gfile=False
   read_efile=False
   read_ffile=False
@@ -574,6 +581,12 @@ if do_force==False:
 
 if do_hills_bias:
   do_internalf=False
+  do_umbrella_bias=False
+
+if do_umbrella_bias:
+  do_internalf=False
+  do_hills_bias=False
+
 
 internalf=1.0
 if do_internalf:
@@ -607,7 +620,7 @@ if read_gfile:
         print ("Note that in either case this must be consistent with the ORDERED set of colvar files provided.")
         sys.exit()
 
-if do_hills_bias:
+if do_hills_bias or do_umbrella_bias:
   with open(bias_grad_file, 'w') as f:
       f.write("# Time, grad, Gaussenergy, numhill, next_restart, previous_restart, replica \n")
 
@@ -924,7 +937,8 @@ def calc_vhar_force(numepoints, numpoints, effparray, colvars, gradbias):
 # calc HILLS forces
 
 if do_hills_bias:
-  print ("Calculating metadynamics bias forces on each COLVAR point of the selected variables from the HILLS files...")
+  print ("Calculating metadynamics bias forces on each COLVAR point of the selected variables from the HILLS files")
+  print ("which store the deposited Gaussian hills (TIME CV1 CV2... SIGMA_CV1 SIGMA_CV2... HEIGHT)")
   for k in range (0,ncolvars):
      if k==0:
        gaussenergy=[np.zeros((npoints[k]))]
@@ -1022,8 +1036,28 @@ if do_hills_bias:
               f.write("%s \n" % (k))
 
 if do_umbrella_bias:
-
-
+  print ("Calculating metadynamics bias forces on each COLVAR point of the selected variables from the HILLS files...")
+  for k in range (0,ncolvars):
+     diff=np.zeros((nactive[k]))
+     if nactive[k]>0 and do_us[k]:
+       for i in range(0,npoints[k]):
+          diff[0:nactive[k]]=c_cvs[k][0:nactive[k]]-colvarsarray[k][i,a_cvs[k][0:nactive[k]]+1]
+          diff[0:nactive[k]]=diff[0:nactive[k]]/box[iactive[k,0:nactive[k]]]
+          diff[0:nactive[k]]=diff[0:nactive[k]]-np.rint(diff[0:nactive[k]])*periodic[iactive[k,0:nactive[k]]]
+          diff[0:nactive[k]]=diff[0:nactive[k]]*box[iactive[k,0:nactive[k]]]
+          gradv[k][i,iactive[k,0:nactive[k]]]=k_cvs[k][0:nactive[k]]*diff[0:nactive[k]]
+     else:
+       for i in range(0,npoints[k]):
+          with open(bias_grad_file, 'a') as f:
+              f.write("%s " % (colvarsarray[k][i,0]))
+              for j in range(0,ndim):
+                 f.write("%s " % (gradv[k][i,j]))
+              f.write("%s " % " 0 ")
+              f.write("%s " % " 0 " )
+              f.write("%s " % " 0 ")
+              f.write("%s " % " 0 ")
+              f.write("%s \n" % (k))
+       
 # READ EXTERNAL FILE WITH GRADIENTS
        
 if read_gfile:
