@@ -38,6 +38,9 @@ def parse():
     parser.add_argument("-noforce","--nocalcforce", \
                         help="Do not calculate forces. By default forces calculation is ON", \
                         default=True, dest='do_force', action='store_false')
+    parser.add_argument("-nopgradb","--noprintgradbias", \
+                        help="do not print in output bias gradient trajectory ", \
+                        default=True, dest='print_bias', action='store_false')
     parser.add_argument("-obgf", "--outbiasgradfile", \
                         help="output file of bias gradients for each frame", \
                         default="bias_grad.out",type=str, required=False)
@@ -118,6 +121,7 @@ do_just_hills_bias=args.do_jmetab
 do_fast_eff_p_calc=args.do_feffpc
 do_bin_eff_p_calc=args.do_effpb
 do_backrestart=args.do_backres
+print_bias=args.print_bias
 bias_grad_file=args.outbiasgradfile
 labelfile=args.outlabelfile
 eff_points_file=args.outeffpointsfile
@@ -185,6 +189,8 @@ nfcomp=0
 read_gfile=False
 read_efile=False
 read_ffile=False
+has_hills=False
+do_us=False
 nactive=0
 cfile='none'
 hfile='none'
@@ -251,12 +257,12 @@ for line in f:
             print ("ERROR, US_K not specified or specified more than one time on a single line")
             sys.exit()
           if has_us_k:
-            pippo=np.zeros((nactive[ncolvars]),dtype=np.int64)
+            pippo=np.zeros((nactive[ncolvars]))
             npippo=0
             for i in range(lusk+1,nparts):
                if str(parts[i])=="COLVAR_FILE" or str(parts[i])=="US_CVS-CLS" or str(parts[i])=="US_C":
                  break
-               pippo[npippo]=int(parts[i])-1
+               pippo[npippo]=float(parts[i])
                npippo=npippo+1
             k_cvs=[pippo]
 
@@ -270,14 +276,14 @@ for line in f:
             print ("ERROR, US_C not specified or specified more than one time on a single line")
             sys.exit()
           if has_us_c:
-            pippo=np.zeros((nactive[ncolvars]),dtype=np.int64)
+            pippo=np.zeros((nactive[ncolvars]))
             npippo=0
             for i in range(lusc+1,nparts):
                if str(parts[i])=="COLVAR_FILE" or str(parts[i])=="US_CVS-CLS" or str(parts[i])=="US_K":
                  break
-               pippo[npippo]=int(parts[i])-1
+               pippo[npippo]=float(parts[i])
                npippo=npippo+1
-            c_cvs[pippo]
+            c_cvs=[pippo]
 
         else:
           do_us=[False]
@@ -294,7 +300,7 @@ for line in f:
           sys.exit()
         if has_h:
           do_hills_bias=True 
-          if has_us or has_us_k or has_us_c:
+          if has_us:
             print ("ERROR, reading HILLS_FILE is not compatible with US")
             sys.exit()
           has_hills=[True]
@@ -325,7 +331,7 @@ for line in f:
         else:
           has_hills=[False]
           hfile=['none']
-        if has_h==False and has_us=False:
+        if has_h==False and has_us==False:
           nactive=[int(0)] 
           a_cvs=[int(-1)]
 
@@ -369,12 +375,12 @@ for line in f:
             print ("ERROR, US_K not specified or specified more than one time on a single line")
             sys.exit()    
           if has_us_k: 
-            pippo=np.zeros((nactive[ncolvars]),dtype=np.int64)
+            pippo=np.zeros((nactive[ncolvars]))
             npippo=0 
             for i in range(lusk+1,nparts):    
                if str(parts[i])=="COLVAR_FILE" or str(parts[i])=="US_CVS-CLS" or str(parts[i])=="US_C":
                  break 
-               pippo[npippo]=int(parts[i])-1
+               pippo[npippo]=float(parts[i])
                npippo=npippo+1    
             k_cvs.append(pippo)
             
@@ -388,12 +394,12 @@ for line in f:
             print ("ERROR, US_C not specified or specified more than one time on a single line")
             sys.exit()
           if has_us_c:    
-            pippo=np.zeros((nactive[ncolvars]),dtype=np.int64)
+            pippo=np.zeros((nactive[ncolvars]))
             npippo=0
             for i in range(lusc+1,nparts):
                if str(parts[i])=="COLVAR_FILE" or str(parts[i])=="US_CVS-CLS" or str(parts[i])=="US_K":
                  break
-               pippo[npippo]=int(parts[i])-1
+               pippo[npippo]=float(parts[i])
                npippo=npippo+1
             c_cvs.append(pippo)
             
@@ -411,7 +417,7 @@ for line in f:
           sys.exit()
         if has_h:
           do_hills_bias=True 
-          if has_us or has_us_k or has_us_c:
+          if has_us:
             print ("ERROR, reading HILLS_FILE is not compatible with US")
             sys.exit()
           has_hills.append(True)
@@ -442,7 +448,7 @@ for line in f:
         else:
           has_hills.append(False)
           hfile.append('none')
-        if has_h==False and has_us=False: 
+        if has_h==False and has_us==False: 
           nactive.append(int(0))
           a_cvs.append(int(-1))
       ncolvars=ncolvars+1
@@ -598,7 +604,7 @@ if do_internalf:
     sys.exit()    
 
 if read_gfile==False:
-  if do_hills_bias==False:
+  if do_hills_bias==False and do_umbrella_bias==False:
     calc_force_eff=False
     print ("NOTE: no option for reading applied forces from files or calculating them through") 
     print ("HILLS files was selected: mean forces on effective points will not be calculated")
@@ -621,8 +627,9 @@ if read_gfile:
         sys.exit()
 
 if do_hills_bias or do_umbrella_bias:
-  with open(bias_grad_file, 'w') as f:
-      f.write("# Time, grad, Gaussenergy, numhill, next_restart, previous_restart, replica \n")
+  if print_bias:
+    with open(bias_grad_file, 'w') as f:
+        f.write("# Time, grad, Gaussenergy, numhill, next_restart, previous_restart, replica \n")
 
 if calc_epoints:
   with open(eff_points_file, 'w') as f:
@@ -633,6 +640,7 @@ if do_label:
       f.write("# colvar, label, ntraj \n") 
 
 has_hills=np.array(has_hills)
+do_us=np.array(do_us)
 nactive=np.array(nactive)
 upbound=np.array(upbound)
 lowbound=np.array(lowbound)
@@ -1014,49 +1022,65 @@ if do_hills_bias:
             gaussenergy[k][i]=np.sum(expdiff[0:numhills])
             for j in range(0,nactive[k]):  
                gradv[k][i,iactive[k,j]]=np.sum(diff[0:numhills,j]*expdiff[0:numhills]/hillsarray[k][0:numhills,nactive[k]+1+j],axis=0)
-          with open(bias_grad_file, 'a') as f:
-              f.write("%s " % (colvarsarray[k][i,0]))
-              for j in range(0,ndim):
-                 f.write("%s " % (gradv[k][i,j]))
-              f.write("%s " % gaussenergy[k][i])
-              f.write("%s " % numhills)
-              f.write("%s " % trh)
-              f.write("%s " % index)
-              f.write("%s \n" % (k))
+          if print_bias: 
+            with open(bias_grad_file, 'a') as f:
+                f.write("%s " % (colvarsarray[k][i,0]))
+                for j in range(0,ndim):
+                   f.write("%s " % (gradv[k][i,j]))
+                f.write("%s " % gaussenergy[k][i])
+                f.write("%s " % numhills)
+                f.write("%s " % trh)
+                f.write("%s " % index)
+                f.write("%s \n" % (k))
      else:
-       for i in range(0,npoints[k]):
-          with open(bias_grad_file, 'a') as f:
-              f.write("%s " % (colvarsarray[k][i,0]))
-              for j in range(0,ndim):
-                 f.write("%s " % (gradv[k][i,j]))
-              f.write("%s " % " 0 ")
-              f.write("%s " % " 0 " )
-              f.write("%s " % " 0 ")
-              f.write("%s " % " 0 ")
-              f.write("%s \n" % (k))
+       if print_bias: 
+         for i in range(0,npoints[k]):
+            with open(bias_grad_file, 'a') as f:
+                f.write("%s " % (colvarsarray[k][i,0]))
+                for j in range(0,ndim):
+                   f.write("%s " % (gradv[k][i,j]))
+                f.write("%s " % " 0 ")
+                f.write("%s " % " 0 " )
+                f.write("%s " % " 0 ")
+                f.write("%s " % " 0 ")
+                f.write("%s \n" % (k))
 
 if do_umbrella_bias:
-  print ("Calculating metadynamics bias forces on each COLVAR point of the selected variables from the HILLS files...")
+  print ("Calculating umbrella sampling bias forces on each COLVAR point of the selected variables from the centers and force constants provided")
+  # debug
+  #sys.exit() 
+
   for k in range (0,ncolvars):
      diff=np.zeros((nactive[k]))
      if nactive[k]>0 and do_us[k]:
        for i in range(0,npoints[k]):
-          diff[0:nactive[k]]=c_cvs[k][0:nactive[k]]-colvarsarray[k][i,a_cvs[k][0:nactive[k]]+1]
+          diff[0:nactive[k]]=colvarsarray[k][i,a_cvs[k][0:nactive[k]]+1]-c_cvs[k][0:nactive[k]]
           diff[0:nactive[k]]=diff[0:nactive[k]]/box[iactive[k,0:nactive[k]]]
           diff[0:nactive[k]]=diff[0:nactive[k]]-np.rint(diff[0:nactive[k]])*periodic[iactive[k,0:nactive[k]]]
           diff[0:nactive[k]]=diff[0:nactive[k]]*box[iactive[k,0:nactive[k]]]
           gradv[k][i,iactive[k,0:nactive[k]]]=k_cvs[k][0:nactive[k]]*diff[0:nactive[k]]
+          if print_bias:
+            with open(bias_grad_file, 'a') as f:
+                f.write("%s " % (colvarsarray[k][i,0]))
+                for j in range(0,ndim):
+                   f.write("%s " % (gradv[k][i,j]))
+                f.write("%s " % " 0 ")
+                f.write("%s " % " 0 ")
+                f.write("%s " % " 0 ")
+                f.write("%s " % " 0 ")
+                f.write("%s \n" % (k))
      else:
-       for i in range(0,npoints[k]):
-          with open(bias_grad_file, 'a') as f:
-              f.write("%s " % (colvarsarray[k][i,0]))
-              for j in range(0,ndim):
-                 f.write("%s " % (gradv[k][i,j]))
-              f.write("%s " % " 0 ")
-              f.write("%s " % " 0 " )
-              f.write("%s " % " 0 ")
-              f.write("%s " % " 0 ")
-              f.write("%s \n" % (k))
+       if print_bias:
+         for i in range(0,npoints[k]):
+            with open(bias_grad_file, 'a') as f:
+                f.write("%s " % (colvarsarray[k][i,0]))
+                for j in range(0,ndim):
+                   f.write("%s " % (gradv[k][i,j]))
+                f.write("%s " % " 0 ")
+                f.write("%s " % " 0 " )
+                f.write("%s " % " 0 ")
+                f.write("%s " % " 0 ")
+                f.write("%s \n" % (k))
        
 # READ EXTERNAL FILE WITH GRADIENTS
        
