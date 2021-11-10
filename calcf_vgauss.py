@@ -546,7 +546,7 @@ if str(units)=="kj":
   kb=0.00831446261815324
 elif str(units)=="kcal":
   kb=0.0019858775
-elif kb<0 and do_just_eff_points==False and do_just_hills_bias==False and read_ffile==False:
+elif kb<0 and do_just_eff_points==False and do_just_hills_bias==False and read_ffile==False and do_force==True:
     print ("ERROR: please specify either the units (-units) or the value of the Boltzmann factor (-kb option)")
     sys.exit()
 
