@@ -1,0 +1,6 @@
+p '/data/TMB-CSB/Fiorin/membranes/multimap/nanotubes/nanotube-water/nt-water.us.pmf' w l lw 2 title "WHAM", 'fes_400.out' w l lw 2 title "FCAM"  
+set xlabel "Number of waters"  
+set ylabel "Free energy [kcal/mol]"  
+set term png  
+set output "us-nanotube-FCAM-vs-WHAM.png"  
+replot

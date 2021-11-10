@@ -1,0 +1,7 @@
+Input read
+Calculating metadynamics bias forces on each COLVAR point of the selected variables from the HILLS files
+which store the deposited Gaussian hills (TIME CV1 CV2... SIGMA_CV1 SIGMA_CV2... HEIGHT)
+NUMBER OF POINTS FOR WALKER  0 :  60000
+Reading effective points from external file...
+Calculating forces on effective points...
+--- 331.2035846710205 seconds ---

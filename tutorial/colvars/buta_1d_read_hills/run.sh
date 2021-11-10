@@ -1,4 +1,4 @@
-python3.8 ../../../calcf_vgauss.py -if input.dat -units kcal -colvars -temp 298 -calcmetaf > job&
+python3.8 ../../../calcf_vgauss.py -if input.dat -units kcal -colvars -temp 298 > job&
 
 python3.8 ../../../graf_fes_kmc.py -ff grad_on_eff_points.out -units kcal -temp 698 -nsteps 1000000000 -ofesf fes.out
 

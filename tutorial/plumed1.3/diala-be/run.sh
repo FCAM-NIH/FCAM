@@ -1,4 +1,4 @@
-python3.8 ../../../calcf_vgauss.py -if input.dat -units kj -temp 298 -calcmetaf > job&
+python3.8 ../../../calcf_vgauss.py -if input.dat -units kj -temp 298 > job&
 
 python3.8 ../../../graf_fes_kmc.py -ff grad_on_eff_points.out -units kj -temp 1298 -nsteps 10000000000 -weth 1 -ofesf fes.out
 
