@@ -1,3 +1,3 @@
 # numerical integrator to get the 1D free energy from the free energy gradient
 # 
-#usage: bash get_integral.sh [pmf_gradient_file] [starting_point] [final_point] [step]
+#usage: bash get_integral.sh [pmf_gradient_file] [starting_point] [final_point] [npoints]
