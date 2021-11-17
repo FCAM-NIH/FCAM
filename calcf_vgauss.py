@@ -333,7 +333,7 @@ for line in f:
           hfile=['none']
         if has_h==False and has_us==False:
           nactive=[int(0)] 
-          a_cvs=[int(-1)]
+          a_cvs=[int(-2)]
 
       if ncolvars>0:
         cfile.append(str(parts[lc+1])) 
@@ -450,7 +450,7 @@ for line in f:
           hfile.append('none')
         if has_h==False and has_us==False: 
           nactive.append(int(0))
-          a_cvs.append(int(-1))
+          a_cvs.append(int(-2))
       ncolvars=ncolvars+1
 
     if str(parts[0])=="CV-CL":
