@@ -1,2 +1,4 @@
 COLVAR_FILE meta.1.equil.colvars.traj 
+# pippo
 CV-CL 4 -180  180 360 PERIODIC
+# pluto
