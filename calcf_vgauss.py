@@ -190,6 +190,7 @@ read_gfile=False
 read_efile=False
 read_ffile=False
 has_hills=False
+gammaf=1
 do_us=False
 nactive=0
 cfile='none'
@@ -205,6 +206,7 @@ for line in f:
     ncfiles=0
     nhfiles=0
     nafields=0 
+    nbffields=0
     nuscvfields=0
     nuskfields=0
     nuscfields=0
@@ -307,6 +309,23 @@ for line in f:
           hfile=[str(parts[lh+1])]  
           has_a=False
           nact=0 
+          has_bf=False
+          for i in range (0,nparts):
+             if str(parts[i])=="BF":
+               lbf=i
+               nbffields=nbffields+1
+               has_bf=True
+          if has_bf==True and nbffields>1:
+            print ("ERROR, BF (bias factor) specified more than once on a single line")
+            sys.exit()
+          if has_bf:
+            bias_factor=float(parts[lbf+1])
+            if bias_factor<=0:
+              print ("ERROR, please select a positive (and non zero) bias factor")
+              sys.exit()
+            gammaf=[(bias_factor-1.0)/bias_factor]  
+          else:
+            gammaf=[1.0]
           for i in range (0,nparts):
              if str(parts[i])=="HILLS_CVS-CLS": 
                la=i
@@ -316,14 +335,14 @@ for line in f:
             print ("ERROR, HILLS_CVS-CLS not specified or specified more than once on a single line")
             sys.exit()
           for i in range (la+1,nparts):
-             if str(parts[i])=="COLVAR_FILE" or str(parts[i])=="HILLS_FILE":
+             if str(parts[i])=="COLVAR_FILE" or str(parts[i])=="HILLS_FILE" or str(parts[i])=="BF":
                break  
              nact=nact+1
           nactive=[nact]
           pippo=np.zeros((nactive[ncolvars]),dtype=np.int64)
           npippo=0
           for i in range(la+1,nparts):
-             if str(parts[i])=="COLVAR_FILE" or str(parts[i])=="HILLS_FILE":
+             if str(parts[i])=="COLVAR_FILE" or str(parts[i])=="HILLS_FILE" or str(parts[i])=="BF":
                break
              pippo[npippo]=int(parts[i])-1
              npippo=npippo+1 
@@ -424,6 +443,23 @@ for line in f:
           hfile.append(str(parts[lh+1]))
           has_a=False
           nact=0   
+          has_bf=False
+          for i in range (0,nparts):
+             if str(parts[i])=="BF":
+               lbf=i
+               nbffields=nbffields+1
+               has_bf=True
+          if has_bf==True and nbffields>1:
+            print ("ERROR, BF (bias factor) specified more than once on a single line")
+            sys.exit()
+          if has_bf:
+            bias_factor=float(parts[lbf+1])
+            if bias_factor<=0:
+              print ("ERROR, please select a positive (and non zero) bias factor")
+              sys.exit()
+            gammaf.append((bias_factor-1.0)/bias_factor)
+          else:
+            gammaf.append(1.0)
           for i in range (0,nparts):
              if str(parts[i])=="HILLS_CVS-CLS": 
                la=i
@@ -433,14 +469,14 @@ for line in f:
             print ("ERROR, HILLS_CVS-CLS not specified or specidied more than once on a single line")
             sys.exit()
           for i in range (la+1,nparts):
-             if str(parts[i])=="COLVAR_FILE" or str(parts[i])=="HILLS_FILE":
+             if str(parts[i])=="COLVAR_FILE" or str(parts[i])=="HILLS_FILE" or str(parts[i])=="BF":
                break 
              nact=nact+1
           nactive.append(nact)
           pippo=np.zeros((nactive[ncolvars]),dtype=np.int64)
           npippo=0
           for i in range(la+1,nparts):
-             if str(parts[i])=="COLVAR_FILE" or str(parts[i])=="HILLS_FILE":
+             if str(parts[i])=="COLVAR_FILE" or str(parts[i])=="HILLS_FILE" or str(parts[i])=="BF":
                break
              pippo[npippo]=int(parts[i])-1
              npippo=npippo+1
@@ -1018,7 +1054,7 @@ if do_hills_bias:
             diff2[0:numhills,0:nactive[k]]=0.5*diff2[0:numhills,0:nactive[k]]
             expdiff[0:numhills]=np.sum(diff2[0:numhills,0:nactive[k]],axis=1)
             expdiff[0:numhills]=np.where(expdiff[0:numhills]<hcutoff,np.exp(-expdiff[0:numhills]),0.0)
-            expdiff[0:numhills]=hillsarray[k][0:numhills,2*nactive[k]+1]*expdiff[0:numhills]
+            expdiff[0:numhills]=gammaf[k]*hillsarray[k][0:numhills,2*nactive[k]+1]*expdiff[0:numhills]
             gaussenergy[k][i]=np.sum(expdiff[0:numhills])
             for j in range(0,nactive[k]):  
                gradv[k][i,iactive[k,j]]=np.sum(diff[0:numhills,j]*expdiff[0:numhills]/hillsarray[k][0:numhills,nactive[k]+1+j],axis=0)
