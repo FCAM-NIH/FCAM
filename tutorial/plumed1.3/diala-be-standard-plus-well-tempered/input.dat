@@ -1,0 +1,9 @@
+COLVAR_FILE ../diala-be/COLVAR0 
+COLVAR_FILE ../diala-be/COLVAR1 
+COLVAR_FILE ../diala-be-well-tempered/COLVAR0 
+COLVAR_FILE ../diala-be-well-tempered/COLVAR1 
+CV-CL 1 -3.14159265359  3.14159265359 144 PERIODIC
+CV-CL 2 -3.14159265359  3.14159265359 144 PERIODIC
+READ_EPOINTS ../diala-be/results/eff_points.out
+READ_EPOINTS ../diala-be-well-tempered/results/eff_points.out
+READ_BIAS_GRAD_TRJ results/bias_grad.out 
