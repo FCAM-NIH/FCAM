@@ -1,4 +1,3 @@
-#usage 
 
 npoints=$4
 ini=$2
