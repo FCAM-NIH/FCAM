@@ -1,4 +1,4 @@
-python3.8 ../../../../calcf_vgauss.py -if input.dat -units kcal -colvars -temp 300 -nopgradb -oeff grad_on_eff_points.out > job&
+python3.8 ../../../../calcf_vgauss.py -if input.dat -units kcal -temp 300 -nopgradb -oeff grad_on_eff_points.out > job&
 
 # free energy by numerical integration
 
