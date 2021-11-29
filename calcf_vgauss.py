@@ -80,7 +80,7 @@ def parse():
     parser.add_argument("-label","--label", \
                         help="label COLVARS according to the effective foints", \
                         default=False, dest='do_label', action='store_true')
-    parser.add_argument("-wrtlabelscrd","---writelabelscoord", \
+    parser.add_argument("-wrtlabelscrd","--writelabelscoord", \
                         help="write COLVARS for each label", \
                         default=False, dest='write_label_coord', action='store_true')
     parser.add_argument("-hlfl","--hillfreqlarge", \
