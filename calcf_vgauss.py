@@ -672,9 +672,13 @@ if calc_epoints:
       f.write("# numeff, colvar, npoints \n")
 
 if do_label:
-  with open(labelfile, 'w') as f:
-      f.write("# colvar, label, ntraj \n") 
-
+  if writelabelscoord==False:
+    with open(labelfile, 'w') as f:
+        f.write("# time, label, ntraj \n") 
+  else:
+    with open(labelfile, 'w') as f:
+        f.write("# time, colvar, label, ntraj \n")
+     
 has_hills=np.array(has_hills)
 do_us=np.array(do_us)
 nactive=np.array(nactive)
