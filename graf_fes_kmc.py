@@ -857,7 +857,7 @@ if do_mfepath:
             f.write("MINPATH: %s %s %s %s \n" % (minpathdeflnlike,np.sum(minpathdefenerlike),len(minpathdef),minpathlnlike-minpathdeflnlike))   
   
   with open(path_file, 'w') as f:
-      f.write("# colvars, pathstate, free energy, -ln(prob) \n")
+      f.write("# colvars, pathstate, free energy, deltaF \n")
       for nn in range (0,len(minpathdef)):
          for j in range (0,ndim):
             f.write("%s " % (tmparray[minpathdef[nn],j]))
@@ -907,7 +907,7 @@ if do_spath:
        this1=finalbinmfepath
        this=this1
        with open(path_file, 'w') as f:
-           f.write("# colvars, pathstate, free energy, -ln(prob) \n")
+           f.write("# colvars, pathstate, free energy, ln(prob) \n")
            for j in range (0,ndim):
               f.write("%s " % (tmparray[this,j]))
            f.write("%i %s %s \n" % (this,fesarray[this,ndim],e_lnprob[this]))
