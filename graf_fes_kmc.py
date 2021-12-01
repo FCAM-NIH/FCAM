@@ -862,9 +862,18 @@ if do_mfepath:
          for j in range (0,ndim):
             f.write("%s " % (tmparray[minpathdef[nn],j]))
          if nn==0:
-           f.write("%i %s %s \n" % (minpathdef[nn],fesarray[minpathdef[nn],ndim],minpathdefenerlike[nn]))
+           ener_tot_tmp=0.0
+           if read_fes:
+             f.write("%i %s %s \n" % (minpathdef[nn],fesarray[minpathdef[nn],ndim],minpathdefenerlike[nn]))
+           else:
+             f.write("%i %s %s \n" % (minpathdef[nn]," 0.0 ",minpathdefenerlike[nn]))
          else:
-           f.write("%i %s %s \n" % (minpathdef[nn],fesarray[minpathdef[nn],ndim],(2*kb*pathtemp)*(-minpathdefenerlike[nn]+np.log(freqpath[minpathdef[nn-1],0]))))
+           ener_diff_tmp=(2*kb*pathtemp)*(-minpathdefenerlike[nn]+np.log(freqpath[minpathdef[nn-1],0]))
+           ener_tot_tmp=ener_tot_tmp-ener_diff_tmp
+           if read_fes:
+             f.write("%i %s %s \n" % (minpathdef[nn],fesarray[minpathdef[nn],ndim],ener_diff_tmp))
+           else:
+             f.write("%i %s %s \n" % (minpathdef[nn],ener_tot_tmp,ener_diff_tmp))
 
 if do_spath:
   #atnum=np.zeros((npoints+1),dtype=np.int32)
@@ -907,19 +916,29 @@ if do_spath:
        this1=finalbinmfepath
        this=this1
        with open(path_file, 'w') as f:
-           f.write("# colvars, pathstate, free energy, ln(prob) \n")
+           f.write("# colvars, pathstate, free energy, deltaF \n")
            for j in range (0,ndim):
               f.write("%s " % (tmparray[this,j]))
-           f.write("%i %s %s \n" % (this,fesarray[this,ndim],e_lnprob[this]))
+           #f.write("%i %s %s \n" % (this,fesarray[this,ndim],e_lnprob[this]))
+           ener_tot_tmp=0.0
+           if read_fes: 
+             f.write("%i %s %s \n" % (this,fesarray[this,ndim]," 0.0 "))
+           else:
+             f.write("%i %s %s \n" % (this," 0.0 "," 0.0 ")) 
            while this1!=startbinmfepath:
+                ener_prev=e_lnprob[this]
                 this=come_from[this1]
                 for j in range (0,ndim):
                    f.write("%s " % (tmparray[this,j]))
-                f.write("%i %s %s \n" % (this,fesarray[this,ndim],e_lnprob[this]))
+                #f.write("%i %s %s \n" % (this,fesarray[this,ndim],e_lnprob[this]))
+                ener_tmp=e_lnprob[this]-ener_prev
+                ener_diff_tmp=(2*kb*pathtemp)*(-ener_tmp+np.log(freqpath[this,0]))
+                ener_tot_tmp=ener_tot_tmp+ener_diff_tmp
+                if read_fes:  
+                  f.write("%i %s %s \n" % (this,fesarray[this,ndim],-ener_diff_tmp))
+                else:
+                  f.write("%i %s %s \n" % (this,ener_tot_tmp,-ener_diff_tmp))
                 this1=this
-           #for j in range (0,ndim):
-           #   f.write("%s " % (tmparray[this,j]))
-           #   f.write("%i %s %s \n" % (this,fesarray[this,ndim],e_lnprob[this])) 
        break
 
 #   with open("per_iteration_kmc_output.dat", 'a') as f:
