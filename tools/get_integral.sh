@@ -1,3 +1,24 @@
+#!/bin/bash
+
+print_help=`awk -v print_help=$1 'BEGIN{if(print_help=="-h") print 1;else print 0}'`
+
+if [ $print_help -eq 1 ]
+then
+
+echo "Numerical integrator to get the 1D free energy from the free energy gradient "
+echo "" 
+echo "usage: "
+echo ""
+echo "      bash get_integral.sh {pmf_gradient_file} [CV lower bound] [CV upper bound] [CV number of GRID points] "
+echo ""
+echo "for example:"
+echo ""
+echo "      bash get_integral.sh grad_on_eff_points.out -180 180 360"
+echo ""
+
+exit
+
+fi
 
 npoints=$4
 ini=$2
