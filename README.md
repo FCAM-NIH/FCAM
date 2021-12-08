@@ -10,6 +10,8 @@ FCAM_software_doc.pdf: documentation and examples.
 
 tutorial: examples folders.
 
+tools: awk/bash scripts for one-dimensional free energy integration and partitioning neighbors search.
+
 If you use these tools please cite:
 
 Marinelli, F. and J.D. Faraldo-Gomez, Force-Correction Analysis Method for Derivation of Multidimensional Free-Energy Landscapes from Adaptively Biased Replica Simulations. J Chem Theory Comput, 2021. 17(11): p. 6775-6788
