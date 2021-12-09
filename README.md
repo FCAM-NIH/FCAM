@@ -16,3 +16,6 @@ If you use these tools please cite:
 
 Marinelli, F. and J.D. Faraldo-Gomez, Force-Correction Analysis Method for Derivation of Multidimensional Free-Energy Landscapes from Adaptively Biased Replica Simulations. J Chem Theory Comput, 2021. 17(11): p. 6775-6788
 
+The latest stable release including all tools, documentation and examples can be downloaded here:
+
+https://github.com/Faraldo-Gomez-Lab-at-NIH/FCAM/releases/tag/fcam_v1
