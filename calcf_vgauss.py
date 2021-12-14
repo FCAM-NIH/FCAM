@@ -641,9 +641,9 @@ if do_internalf:
 
 if read_gfile==False:
   if do_hills_bias==False and do_umbrella_bias==False:
-    calc_force_eff=False
+    #calc_force_eff=False
     print ("NOTE: no option for reading applied forces from files or calculating them through") 
-    print ("HILLS files was selected: mean forces on effective points will not be calculated")
+    print ("HILLS files was selected: mean forces will be calculated assuming UNBIASED SAMPLING.")
 
 if ndim==0:
   print ("ERROR: number of variables is zero, please provide some to continue")
