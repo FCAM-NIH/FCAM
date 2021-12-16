@@ -7,31 +7,37 @@ then
 
 echo "usage:"
 echo
-echo "bash do_partitions.sh [files path] [GRID points file] [free energy gradient file] [path of graf_fes_kmc.py] (slurm)"
+echo "bash do_partitions.sh {GRID points file} {free energy gradient file} {path of graf_fes_kmc.py} {partitions number} (slurm) ({1 if slurm done, else 0 })"
 echo ""
 echo "                      in case slurm is not used leave blank the last option on the right"
-echo "for example:"
 echo ""
-echo "            bash do_partitions.sh ../results/eff_points.out ../results/grad_on_eff_points.out /data/TMB-CSB/Marinelli/PROG/FCAM/graf_fes_kmc.py"
+echo "for example the following divides the size of the grid point file by 7. The run entails 28 (4x7) jobs based on 28 overlapping partitions:"
 echo ""
-echo "or in case slurm is used "
+echo "            bash do_partitions.sh ../results/eff_points.out ../results/grad_on_eff_points.out /data/TMB-CSB/Marinelli/PROG/FCAM/graf_fes_kmc.py 7"
 echo ""
-echo "            bash do_partitions.sh ../results/eff_points.out ../results/grad_on_eff_points.out /data/TMB-CSB/Marinelli/PROG/FCAM/graf_fes_kmc.py slurm"
+echo "or in case slurm is used (modify job_tmp.sh to inculde specific slurm specification; partitions etc.)"
+echo ""
+echo "            bash do_partitions.sh ../results/eff_points.out ../results/grad_on_eff_points.out /data/TMB-CSB/Marinelli/PROG/FCAM/graf_fes_kmc.py 7 slurm 0"
+echo ""
+echo "            wait that all slurm jobs are done, then type"
+echo ""
+echo "            bash do_partitions.sh ../results/eff_points.out ../results/grad_on_eff_points.out /data/TMB-CSB/Marinelli/PROG/FCAM/graf_fes_kmc.py 7 slurm 1"
 echo ""
 
 exit
 
 fi
 
-# inte provides the number of partitions which in this example is 4xinte=28, where inte=7
+# inte provides the number of partitions for example if inte=7 the total number of "overlapping" partitions is 4xinte=28
 
 eff_points=$1
 grad_file=$2
 grad_file_name=grad_on_eff_points.out
 graf_file=$3
-run_type=$4
+inte=$4
+run_type=$5
+slurmdone=$6
 efflines=`cat $eff_points | fgrep -v \# | awk '{i++}END{print i}'`
-inte=7
 divide8=`awk -v nlines=${efflines} -v div=$inte 'BEGIN{print int(0.5*0.25*nlines/div)}'`
 divide4=$((divide8+divide8))
 divide2=$((divide4+divide4))
@@ -39,7 +45,15 @@ divide=$((divide2+divide2))
 
 runt=`awk -v run_type=$run_type 'BEGIN{if(run_type=="slurm") print 1;else print 0}'`
 
+if [ $runt -eq 0 ]
+then
+slurmdone=0
+fi
+
 # get head
+
+if [ $slurmdone -eq 0 ]
+then
 
 grep \# $grad_file > head
 
@@ -52,7 +66,7 @@ cat $eff_points | fgrep -v \# | awk -v divide=$divide -v divide4=$divide4 -v i=$
 # 
 
 efflines=`cat $grad_file | fgrep -v \# | awk '{i++}END{print i}'`
-inte=7
+inte=$4
 divide8=`awk -v nlines=${efflines} -v div=$inte 'BEGIN{print int(0.5*0.25*nlines/div)}'`
 divide4=$((divide8+divide8))
 divide2=$((divide4+divide4))
@@ -73,7 +87,8 @@ rm head
 if [ $runt -eq 1 ]
 then
 
-for((i=1;i<=$((4*inte));i++)); do sed "s/file_grad/${grad_file_name}_${i}/g" job_tmp.sh | sed "s/neighs.out/neighs_${i}.out/g" | awk -v gdir=$graf_file '{if($1=="graf_file") print "graf_file="gdir;else print $0}' > job_tmp_${i}.sh; sbatch job_tmp_${i}.sh   ; done
+  for((i=1;i<=$((4*inte));i++)); do sed "s/file_grad/${grad_file_name}_${i}/g" job_tmp.sh | sed "s/neighs.out/neighs_${i}.out/g" | awk -v gdir=$graf_file '{if($1=="graf_file") print "graf_file="gdir;else print $0}' > job_tmp_${i}.sh; sbatch job_tmp_${i}.sh   ; done
+  exit
 
 else 
 
@@ -81,10 +96,22 @@ for((i=1;i<=$((4*inte));i++)); do sed "s/file_grad/${grad_file_name}_${i}/g" job
 
 fi
 
+fi
+
+
 # get numbering
 
+if [ $runt -eq 0 ]
+then
+slurmdone=1
+fi
+
+if [ $slurmdone -eq 1 ]
+then
+
+
 efflines=`cat $grad_file | fgrep -v \# | awk '{i++}END{print i}'`
-inte=7
+inte=$4
 divide8=`awk -v nlines=${efflines} -v div=$inte 'BEGIN{print int(0.5*0.25*nlines/div)}'`
 divide4=$((divide8+divide8))
 divide2=$((divide4+divide4))
@@ -99,7 +126,7 @@ cat $grad_file | fgrep -v \# | awk -v divide=$divide -v divide4=$divide4 -v i=$i
 # combine neighbours
 
 efflines=`cat $grad_file | fgrep -v \# | awk '{i++}END{print i}'`
-inte=7
+inte=$4
 cat neighs_1.out | fgrep -v \# | awk '{if(NF>0) print $0}' > pippo
 divide8=`awk -v nlines=${efflines} -v div=$inte 'BEGIN{print int(0.5*0.25*nlines/div)}'`
 divide4=$((divide8+divide8))
@@ -131,3 +158,5 @@ cat $neigh_files > neighsc_tot.out
 for((i=1;i<=$((4*inte));i++)); do rm neighsc_${i}.out job_tmp_${i}.sh neighs_${i}.out ${grad_file_name}_${i} eff_points_${i}.out binlist_${i}.out; done 
 
 rm pippo
+
+fi
