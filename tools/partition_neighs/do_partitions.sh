@@ -9,7 +9,7 @@ echo "usage:"
 echo
 echo "bash do_partitions.sh {GRID points file} {free energy gradient file} {path of graf_fes_kmc.py} {partitions number} (slurm) ({1 if slurm done, else 0 })"
 echo ""
-echo "                      in case slurm is not used leave blank the last option on the right"
+echo "                      in case slurm is not used leave blank the last two options on the right"
 echo ""
 echo "for example the following divides the size of the grid point file by 7. The run entails 28 (4x7) jobs based on 28 overlapping partitions:"
 echo ""
