@@ -1247,14 +1247,20 @@ if do_gefilter:
   #  sys.exit()     
 
 for i in range (0,ncolvars):
-   print ("NUMBER OF POINTS FOR WALKER ",i,": ",len(colvarsarray[i][:,0][~colvarsarray[i][:,0].mask]))
+   if np.ma.is_masked(colvarsarray[i]):
+     print ("NUMBER OF POINTS FOR WALKER ",i,": ",len(colvarsarray[i][:,0][~colvarsarray[i][:,0].mask]))
+   else:
+     print ("NUMBER OF POINTS FOR WALKER ",i,": ",len(colvarsarray[i][:,0]))
 
 # CALCULATE NUMBER OF EFFECTIVE POINTS IF REQUIRED
 
 if calc_epoints:
   print ("Calculating effective points...")
   for k in range (0,ncolvars):
-     ntotpoints=len(colvarsarray[k][:,0][~colvarsarray[k][:,0].mask])
+     if np.ma.is_masked(colvarsarray[k]):
+       ntotpoints=len(colvarsarray[k][:,0][~colvarsarray[k][:,0].mask])
+     else:
+       ntotpoints=len(colvarsarray[k][:,0])
      if k==0:    
        colvarseff=[np.zeros((ntotpoints,ndim))]
        numinpoint=[np.ones((ntotpoints),dtype=np.int64)] 
@@ -1264,8 +1270,12 @@ if calc_epoints:
        numinpoint.append(np.ones((ntotpoints),dtype=np.int64))
        neffpoints.append(1)      
      arrayin=np.zeros((ntotpoints,ndim))
-     for j in range (0,ndim):
-        arrayin[:,j]=colvarsarray[k][:,whichcv[j]+1][~colvarsarray[k][:,whichcv[j]+1].mask]
+     if np.ma.is_masked(colvarsarray[k]):
+       for j in range (0,ndim):
+          arrayin[:,j]=colvarsarray[k][:,whichcv[j]+1][~colvarsarray[k][:,whichcv[j]+1].mask]
+     else:
+       for j in range (0,ndim):
+          arrayin[:,j]=colvarsarray[k][:,whichcv[j]+1] 
      if do_fast_eff_p_calc: 
        colvarseff[k],neffpoints[k],numinpoint[k]=fast_calc_eff_points(ntotpoints, arrayin, numinpoint[k]) 
      else:
@@ -1368,12 +1378,20 @@ if calc_force_eff:
   for k in range (0,ncolvars):
      initframe=int(trajfraction1*npoints[k])
      lastframe=int(trajfraction2*npoints[k])
-     ntotpoints=len(colvarsarray[k][initframe:lastframe:skip,0][~colvarsarray[k][initframe:lastframe:skip,0].mask])
+     if np.ma.is_masked(colvarsarray[k]) and np.ma.is_masked(gradv[k]): 
+       ntotpoints=len(colvarsarray[k][initframe:lastframe:skip,0][~colvarsarray[k][initframe:lastframe:skip,0].mask])
+     else:
+       ntotpoints=len(colvarsarray[k][initframe:lastframe:skip,0])
      arrayin=np.zeros((ntotpoints,ndim))
      gradvin=np.zeros((ntotpoints,ndim))
-     for j in range (0,ndim):
-        arrayin[:,j]=colvarsarray[k][initframe:lastframe:skip,whichcv[j]+1][~colvarsarray[k][initframe:lastframe:skip,whichcv[j]+1].mask]
-        gradvin[:,j]=gradv[k][initframe:lastframe:skip,j][~gradv[k][initframe:lastframe:skip,j].mask]
+     if np.ma.is_masked(colvarsarray[k]) and np.ma.is_masked(gradv[k]):
+       for j in range (0,ndim):
+          arrayin[:,j]=colvarsarray[k][initframe:lastframe:skip,whichcv[j]+1][~colvarsarray[k][initframe:lastframe:skip,whichcv[j]+1].mask]
+          gradvin[:,j]=gradv[k][initframe:lastframe:skip,j][~gradv[k][initframe:lastframe:skip,j].mask]
+     else:
+       for j in range (0,ndim):
+          arrayin[:,j]=colvarsarray[k][initframe:lastframe:skip,whichcv[j]+1]
+          gradvin[:,j]=gradv[k][initframe:lastframe:skip,j]
      gradr, weightr, gradr1, weightr1, gradr2, weightr2=calc_vhar_force(neffpoints, ntotpoints, colvarseff, arrayin, gradvin) 
      weighttot=weighttot+weightr 
      weighttot1=weighttot1+weightr1
