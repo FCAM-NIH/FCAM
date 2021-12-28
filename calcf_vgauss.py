@@ -1380,8 +1380,12 @@ if calc_force_eff:
      lastframe=int(trajfraction2*npoints[k])
      if np.ma.is_masked(colvarsarray[k]) and np.ma.is_masked(gradv[k]): 
        ntotpoints=len(colvarsarray[k][initframe:lastframe:skip,0][~colvarsarray[k][initframe:lastframe:skip,0].mask])
+       ntotpoints_grad=len(gradv[k][initframe:lastframe:skip,0][~gradv[k][initframe:lastframe:skip,0].mask])
      else:
        ntotpoints=len(colvarsarray[k][initframe:lastframe:skip,0])
+       ntotpoints_grad=len(gradv[k][initframe:lastframe:skip,0])
+     if ntotpoints!=ntotpoints_grad:
+       print ("ERROR: colvar file and gradient file do not match")  
      arrayin=np.zeros((ntotpoints,ndim))
      gradvin=np.zeros((ntotpoints,ndim))
      if np.ma.is_masked(colvarsarray[k]) and np.ma.is_masked(gradv[k]):
