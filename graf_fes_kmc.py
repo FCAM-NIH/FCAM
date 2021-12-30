@@ -650,17 +650,55 @@ if do_fes:
 #     names=str(tmparray[nn,0:ndim])
 #     print names[1:-1],-kb*temp*np.log(pop[nn]/maxpop)
 
+  free_energy=np.zeros((npoints))
+
   for nn in range (0,npoints):
      with open(free_energy_file, 'a') as f:
          if pop[nn]>0:
+           free_energy[nn]=-kb*temp*np.log(pop[nn]/maxpop)
            for j in range (0,ndim):
               f.write("%s " % (tmparray[nn,j]))
-           f.write("%s \n" % (-kb*temp*np.log(pop[nn]/maxpop)))
+           f.write("%s \n" % (free_energy[nn]))
          else:
+           free_energy[nn]=np.nan
            for j in range (0,ndim):
               f.write("%s " % (tmparray[nn,j]))
            f.write("%s \n" % (np.nan))
 
+# check and write accuracy
+
+  error_count=0
+  tot_error_diff=0
+  max_error_diff=0 
+  for nn in range(0,npoints):
+     diff=tmparray[nn,0:ndim]-tmparray[neigh[nn,0:nneigh[nn]],0:ndim]
+     if totperiodic>0:
+       diff=diff/box
+       diff=diff-np.rint(diff)*period
+       diff=diff*box
+     dist2=(diff/width)*(diff/width)
+     dist=np.sum(dist2,axis=1)
+     if use_forces:
+       avergrad=tmparray[neigh[nn,0:nneigh[nn]],ndim:2*ndim]*weights[neigh[nn,0:nneigh[nn]],0:ndim]+tmparray[nn,ndim:2*ndim]*weights[nn,0:ndim]
+       weighttot=weights[neigh[nn,0:nneigh[nn]],0:ndim]+weights[nn,0:ndim]
+       avergrad=np.where(weighttot>0,avergrad/weighttot,0)
+       energydiff=np.sum(avergrad*diff,axis=1)
+     else:
+       energydiff=tmparray[nn,ndim]-tmparray[neigh[nn,0:nneigh[nn]],ndim]
+     energydiff_calc=free_energy[nn]-free_energy[neigh[nn,0:nneigh[nn]]]
+     pop_neighs=np.sum(pop[neigh[nn,0:nneigh[nn]]])
+     error_diff=np.nanmean(np.absolute(energydiff_calc-energydiff))
+     if pop[nn]>0 and pop_neighs>0:
+       error_count=error_count+1
+       if error_count==1:
+         max_error_diff=error_diff
+       if error_count>1:
+         if error_diff>max_error_diff:
+           max_error_diff=error_diff     
+       tot_error_diff=tot_error_diff+error_diff
+  print ("Average error on free energy differences between neighbor bins is:",tot_error_diff/error_count)   
+  print ("Maximum error on free energy differences between neighbor bins is:",max_error_diff)
+     
 if do_mfepath:
 
   # First stage global search
