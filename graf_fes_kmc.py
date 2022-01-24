@@ -696,8 +696,10 @@ if do_fes:
          if error_diff>max_error_diff:
            max_error_diff=error_diff     
        tot_error_diff=tot_error_diff+error_diff
+
   print ("Average error on free energy differences between neighbor bins is:",tot_error_diff/error_count)   
   print ("Maximum error on free energy differences between neighbor bins is:",max_error_diff)
+  print ("Bin maximum population is:",maxpop)
      
 if do_mfepath:
 
