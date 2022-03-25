@@ -13,6 +13,9 @@ def parse():
     parser.add_argument("-noforces","--nouseforces", \
                         help="do not use forces to run kmc but use free energy (read externally) instead ", \
                         default=True, dest='use_forces', action='store_false')
+    parser.add_argument("-rfd","--reversefinitediff", \
+                        help="Calculate free energy using iterative reverse finite difference over a KMC trajectory (instead of from KMC populations)", \
+                        default=False, dest='do_rfd', action='store_true')
     parser.add_argument("-kcont","--dokineticcontacts", \
                         help="Calculate neighbours from inter-bin transitions evaluated on a continous trajectory with bin-labels", \
                         default=False, dest='do_kcont', action='store_true')
@@ -122,6 +125,7 @@ args = parse()
 use_forces=args.use_forces
 print_neighs=args.print_neighs
 do_kinetic_cont=args.do_kcont
+do_rfd=args.do_rfd
 labelsfile=args.labelsfile
 mintrans=args.minnumbintransitions
 read_neighs=args.read_neighs
@@ -485,6 +489,41 @@ def run_kmc(numsteps,numpoints,startstate):
            break
    return popu   
 
+@jit(nopython=True)
+def run_kmc_rfd(numsteps,numpoints,startstate):
+
+   state=startstate
+   itt=0
+   #names=str(tmparray[state,0:ndim])
+   fesu=np.empty((numpoints))
+   fesu[:]=np.nan
+   fesu[state]=0
+    
+   for nn in range(0,numsteps):
+      thisp=0
+      rand=np.random.rand()
+      # assign free energy of neighbors based on reverse finite differences if unassigned
+      for j in range(0,nneigh[state]):
+         if np.isnan(fesu[neigh[state,j]]) and freq[neigh[state,j]]>0 and prob[state,j]>0:
+           fesu[neigh[state,j]]=fesu[state]-fesdiff[state,j]
+         #print ("DEBUG",state,j,neigh[state,j],fesu[neigh[state,j]],fesu[state],fesdiff[state,j],prob[state,j],freq[neigh[state,j]])
+      # correct free energy of current state by weighted average of free energy differences over neighbors
+      weighttotu=0
+      fesave=0 
+      for j in range(0,nneigh[state]):
+         if freq[neigh[state,j]]>0 and prob[state,j]>0:
+           weightu=weights[neigh[state,j],0:ndim]+weights[state,0:ndim]
+           weighttotu=weighttotu+np.mean(weightu)
+           fesave=fesave+((fesu[neigh[state,j]]+fesdiff[state,j])*np.mean(weightu))
+      fesu[state]=fesave/weighttotu
+      for j in range(0,nneigh[state]):
+         thisp=thisp+prob[state,j]
+         if thisp > rand and freq[neigh[state,j]]>0:
+           rand=np.random.rand()
+           state=neigh[state,j]
+           break
+   return fesu
+
 if calc_neighs:  
   if do_kinetic_cont:
     print ("Calculating the neighbours using kinetic contacts")
@@ -546,6 +585,8 @@ print ("Got the neighbours")
 if do_cutoff:
   maxneigh=np.amax(nneigh)
 prob=np.zeros((npoints,maxneigh))
+fesdiff=np.empty((npoints,maxneigh))
+fesdiff[:,:]=np.nan
 logprobpath=np.empty((npoints,maxneigh))
 logprobpath[:,:]=np.nan
 
@@ -582,6 +623,7 @@ for i in range(0,npoints):
       logprobpath[i,0:nneigh[i]]=(np.log(invdist))+(energydiff/(2*kb*pathtemp)) 
       #logprobpath[i,0:nneigh[i]]=np.where(valid>0,(np.log(invdist))+(energydiff/(2*kb*pathtemp)),np.nan) 
     prob[i,0:nneigh[i]]=invdist*np.exp(energydiff/(2*kb*temp))
+    fesdiff[i,0:nneigh[i]]=energydiff
     #prob[i,0:nneigh[i]]=np.where(valid>0,invdist*np.exp(energydiff/(2*kb*temp)),0.0)
 
 #print("--- %s seconds ---" % (time.time() - start_time))
@@ -644,30 +686,47 @@ if do_fes:
   else:
     goodstates=np.where(nneigh>0)
     goodfes=fesarray[goodstates[0],ndim]
-    initstate=goodstates[0][np.argmin(goodfes)] 
-  pop=run_kmc(nsteps,npoints,initstate)  
-    
-  maxpop=np.amax(pop)
+    initstate=goodstates[0][np.argmin(goodfes)]
+  if do_rfd:
+    print ("Free energy is calculated using reverse finite difference over KMC trajectory") 
+    free_energy=run_kmc_rfd(nsteps,npoints,initstate)
+    minfes=np.nanmin(free_energy)
+    for nn in range (0,npoints):
+       with open(free_energy_file, 'a') as f:
+           if np.isnan(free_energy[nn]):
+             for j in range (0,ndim):
+                f.write("%s " % (tmparray[nn,j]))
+             f.write("%s \n" % (np.nan))
+           else:
+             free_energy[nn]=free_energy[nn]-minfes     
+             for j in range (0,ndim):
+                f.write("%s " % (tmparray[nn,j]))
+             f.write("%s \n" % (free_energy[nn]))
+  else: 
+    print ("Free energy is calculated from bin populations across KMC trajectory")
+    pop=run_kmc(nsteps,npoints,initstate)  
+      
+    maxpop=np.amax(pop)
 #for nn in range(0,npoints):
 #   if pop[nn]>0:
 #     names=str(tmparray[nn,0:ndim])
 #     print names[1:-1],-kb*temp*np.log(pop[nn]/maxpop)
 
-  free_energy=np.zeros((npoints))
-
-  for nn in range (0,npoints):
-     with open(free_energy_file, 'a') as f:
-         if pop[nn]>0:
-           free_energy[nn]=-kb*temp*np.log(pop[nn]/maxpop)
-           for j in range (0,ndim):
-              f.write("%s " % (tmparray[nn,j]))
-           f.write("%s \n" % (free_energy[nn]))
-         else:
-           free_energy[nn]=np.nan
-           for j in range (0,ndim):
-              f.write("%s " % (tmparray[nn,j]))
-           f.write("%s \n" % (np.nan))
-
+    free_energy=np.zeros((npoints))
+   
+    for nn in range (0,npoints):
+       with open(free_energy_file, 'a') as f:
+           if pop[nn]>0:
+             free_energy[nn]=-kb*temp*np.log(pop[nn]/maxpop)
+             for j in range (0,ndim):
+                f.write("%s " % (tmparray[nn,j]))
+             f.write("%s \n" % (free_energy[nn]))
+           else:
+             free_energy[nn]=np.nan
+             for j in range (0,ndim):
+                f.write("%s " % (tmparray[nn,j]))
+             f.write("%s \n" % (np.nan))
+    print ("Bin maximum population is:",maxpop)
 # check and write accuracy
 
   error_count=0
@@ -689,9 +748,10 @@ if do_fes:
      else:
        energydiff=tmparray[nn,ndim]-tmparray[neigh[nn,0:nneigh[nn]],ndim]
      energydiff_calc=free_energy[nn]-free_energy[neigh[nn,0:nneigh[nn]]]
-     pop_neighs=np.sum(pop[neigh[nn,0:nneigh[nn]]])
+     #pop_neighs=np.sum(pop[neigh[nn,0:nneigh[nn]]])
      error_diff=np.nanmean(np.absolute(energydiff_calc-energydiff))
-     if pop[nn]>0 and pop_neighs>0:
+     #if pop[nn]>0 and pop_neighs>0:
+     if np.isnan(error_diff)==False:
        error_count=error_count+1
        if error_count==1:
          max_error_diff=error_diff
@@ -702,7 +762,6 @@ if do_fes:
 
   print ("Average error on free energy differences between neighbor bins is:",tot_error_diff/error_count)   
   print ("Maximum error on free energy differences between neighbor bins is:",max_error_diff)
-  print ("Bin maximum population is:",maxpop)
      
 if do_mfepath:
 
@@ -944,7 +1003,7 @@ if do_spath:
      for i in range (0,ngrp):
         this = atnum[i]
         for j in range (0,nneigh[this]):
-           if logprobpath[this,j]==np.nan:
+           if np.isnan(logprobpath[this,j]):
              continue  
            this1 = neigh[this,j]
            if e_lnprob[this1]>1.5:
