@@ -617,7 +617,6 @@ if read_path:
           if neigh[int(patharray[j-1,ndim]),jj]==int(patharray[j,ndim]):
             refjj=jj
        minpathdefenerlike.append(-logprobpath[int(patharray[j-1,ndim]),refjj]) 
-       #minpathdefenerlike.append(-((patharray[j,ndim+2]/(2*kb*pathtemp))-np.log(freqpath[int(patharray[j-1,ndim]),0])))
   minpathdeflnlike=np.sum(minpathdefenerlike)
   minpath=minpathdef
   minpathlnlike=minpathdeflnlike
@@ -965,6 +964,8 @@ if do_spath:
        is_end=True 
        this1=finalbinmfepath
        this=this1
+       ener_like=e_lnprob[this]
+       len_path=1
        with open(path_file, 'w') as f:
            f.write("# colvars, pathstate, free energy, deltaF \n")
            for j in range (0,ndim):
@@ -976,7 +977,7 @@ if do_spath:
            else:
              f.write("%i %s %s \n" % (this," 0.0 "," 0.0 ")) 
            while this1!=startbinmfepath:
-                ener_prev=e_lnprob[this]
+                len_path=len_path+1
                 this=come_from[this1]
                 for j in range (0,ndim):
                    f.write("%s " % (tmparray[this,j]))
@@ -995,6 +996,9 @@ if do_spath:
                 else:
                   f.write("%i %s %s \n" % (this,ener_tot_tmp,-ener_diff_tmp))
                 this1=this
+       with open(per_iter_path_file, 'a') as f:
+           f.write("%s %s \n" % (-ener_like,len_path))
+
        break
 
 #   with open("per_iteration_kmc_output.dat", 'a') as f:
