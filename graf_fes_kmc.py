@@ -613,7 +613,11 @@ if read_path:
        minpathdefenerlike=[0.0]
      else:
        minpathdef.append(int(patharray[j,ndim]))
-       minpathdefenerlike.append(-((patharray[j,ndim+2]/(2*kb*pathtemp))-np.log(freqpath[int(patharray[j-1,ndim]),0])))
+       for jj in range (0,nneigh[int(patharray[j-1,ndim])]):
+          if neigh[int(patharray[j-1,ndim]),jj]==int(patharray[j,ndim]):
+            refjj=jj
+       minpathdefenerlike.append(-logprobpath[int(patharray[j-1,ndim]),refjj]) 
+       #minpathdefenerlike.append(-((patharray[j,ndim+2]/(2*kb*pathtemp))-np.log(freqpath[int(patharray[j-1,ndim]),0])))
   minpathdeflnlike=np.sum(minpathdefenerlike)
   minpath=minpathdef
   minpathlnlike=minpathdeflnlike
@@ -902,11 +906,17 @@ if do_mfepath:
          if nn==0:
            ener_tot_tmp=0.0
            if read_fes:
-             f.write("%i %s %s \n" % (minpathdef[nn],fesarray[minpathdef[nn],ndim],minpathdefenerlike[nn]))
+             f.write("%i %s %s \n" % (minpathdef[nn],fesarray[minpathdef[nn],ndim]," 0.0 "))
            else:
-             f.write("%i %s %s \n" % (minpathdef[nn]," 0.0 ",minpathdefenerlike[nn]))
+             f.write("%i %s %s \n" % (minpathdef[nn]," 0.0 "," 0.0 "))
          else:
-           ener_diff_tmp=(2*kb*pathtemp)*(-minpathdefenerlike[nn]+np.log(freqpath[minpathdef[nn-1],0]))
+           #ener_diff_tmp=(2*kb*pathtemp)*(-minpathdefenerlike[nn]+np.log(freqpath[minpathdef[nn-1],0]))
+           lograte=-minpathdefenerlike[nn]+np.log(freqpath[minpathdef[nn-1],0])
+           for jj in range (0,nneigh[minpathdef[nn]]):    
+              if neigh[minpathdef[nn],jj]==minpathdef[nn-1]:
+                refjj=jj
+           revlograte=logprobpath[minpathdef[nn],refjj]+np.log(freqpath[minpathdef[nn],0]) 
+           ener_diff_tmp=(kb*pathtemp)*(lograte-revlograte)
            ener_tot_tmp=ener_tot_tmp-ener_diff_tmp
            if read_fes:
              f.write("%i %s %s \n" % (minpathdef[nn],fesarray[minpathdef[nn],ndim],ener_diff_tmp))
@@ -968,9 +978,15 @@ if do_spath:
                 this=come_from[this1]
                 for j in range (0,ndim):
                    f.write("%s " % (tmparray[this,j]))
-                #f.write("%i %s %s \n" % (this,fesarray[this,ndim],e_lnprob[this]))
-                ener_tmp=e_lnprob[this]-ener_prev
-                ener_diff_tmp=(2*kb*pathtemp)*(-ener_tmp+np.log(freqpath[this,0]))
+                for jj in range (0,nneigh[this]): 
+                   if neigh[this,jj]==this1: 
+                     refjj=jj
+                for jj in range (0,nneigh[this1]):
+                   if neigh[this1,jj]==this:
+                     revrefjj=jj
+                lograte=logprobpath[this,refjj]+np.log(freqpath[this,0])
+                revlograte=logprobpath[this1,revrefjj]+np.log(freqpath[this1,0])
+                ener_diff_tmp=(kb*pathtemp)*(lograte-revlograte)
                 ener_tot_tmp=ener_tot_tmp+ener_diff_tmp
                 if read_fes:  
                   f.write("%i %s %s \n" % (this,fesarray[this,ndim],-ener_diff_tmp))
