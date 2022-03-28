@@ -516,7 +516,7 @@ def run_kmc_rfd(numsteps,numpoints,startstate):
            if np.isnan(fesref)==False:
              weightu=weights[neigh[state,j],0:ndim]+weights[state,0:ndim]
              weighttotu=weighttotu+np.mean(weightu)
-             fesave=fesave+((fesu[neigh[state,j]]+fesdiff[state,j])*np.mean(weightu))
+             fesave=fesave+(fesref*np.mean(weightu))
       fesu[state]=fesave/weighttotu
       for j in range(0,nneigh[state]):
          thisp=thisp+prob[state,j]
