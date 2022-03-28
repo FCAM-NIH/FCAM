@@ -504,14 +504,14 @@ def run_kmc_rfd(numsteps,numpoints,startstate):
       rand=np.random.rand()
       # assign free energy of neighbors based on reverse finite differences if unassigned
       for j in range(0,nneigh[state]):
-         if np.isnan(fesu[neigh[state,j]]) and freq[neigh[state,j]]>0 and prob[state,j]>0:
+         if np.isnan(fesu[neigh[state,j]]) and freq[neigh[state,j]]*prob[state,j]>0:
            fesu[neigh[state,j]]=fesu[state]-fesdiff[state,j]
          #print ("DEBUG",state,j,neigh[state,j],fesu[neigh[state,j]],fesu[state],fesdiff[state,j],prob[state,j],freq[neigh[state,j]])
       # correct free energy of current state by weighted average of free energy differences over neighbors
       weighttotu=0
       fesave=0 
       for j in range(0,nneigh[state]):
-         if freq[neigh[state,j]]>0 and prob[state,j]>0:
+         if freq[neigh[state,j]]*prob[state,j]>0 and np.isnan(fesdiff[state,j])==False:
            weightu=weights[neigh[state,j],0:ndim]+weights[state,0:ndim]
            weighttotu=weighttotu+np.mean(weightu)
            fesave=fesave+((fesu[neigh[state,j]]+fesdiff[state,j])*np.mean(weightu))
