@@ -517,7 +517,8 @@ def run_kmc_rfd(numsteps,numpoints,startstate):
              weightu=weights[neigh[state,j],0:ndim]+weights[state,0:ndim]
              weighttotu=weighttotu+np.mean(weightu)
              fesave=fesave+(fesref*np.mean(weightu))
-      fesu[state]=fesave/weighttotu
+      if weighttotu>0:
+        fesu[state]=fesave/weighttotu
       for j in range(0,nneigh[state]):
          thisp=thisp+prob[state,j]
          if thisp > rand and freq[neigh[state,j]]>0:
