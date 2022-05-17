@@ -1,5 +1,7 @@
 # Force-Correction Analysis Method (FCAM)
 
+A methodology for the calculation of multidimensional free-energy landscapes of molecular systems, based on analysis of molecular dynamics trajectories wherein stationary or adaptive biases have been applied to enhance the sampling of one or more collective variables. 
+
 https://pubmed.ncbi.nlm.nih.gov/34669402/
 
 Please cite:
