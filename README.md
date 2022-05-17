@@ -1,8 +1,10 @@
-# Force-Correction Analysis Method (FCAM) for evaluation of free-energy landscapes based on enhanced-sampling MD simulation data
+# Force-Correction Analysis Method (FCAM)
+
+https://pubmed.ncbi.nlm.nih.gov/34669402/
 
 Please cite:
 
-Marinelli, F. and J.D. Faraldo-Gomez, Force-Correction Analysis Method for Derivation of Multidimensional Free-Energy Landscapes from Adaptively Biased Replica Simulations. J Chem Theory Comput, 2021, 17: p. 6775-6788
+Marinelli, F. and J.D. Faraldo-Gomez, Force-Correction Analysis Method for Derivation of Multidimensional Free-Energy Landscapes from Adaptively Biased Replica Simulations. J Chem Theory Comput, 2021, 17: p. 6775-6788 
 
 The latest stable release including all tools, documentation and examples can be downloaded here:
 
