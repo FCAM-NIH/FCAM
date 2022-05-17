@@ -11,7 +11,7 @@ https://github.com/Faraldo-Gomez-Lab-at-NIH/FCAM/releases/tag/fcam_v1
 This repository includes:
 
 calcf_vgauss.py: python program to calculate mean forces based on the Force-Correction Analysis Method.  
-graf_fes_kmc.py: python program to derive free energy landscapes and minimum free energy paths from the mean forces based on kinetic Monte Carlo.  
+graf_fes_kmc.py: python program to derive free energy landscapes and minimum free energy paths from mean forces using kinetic Monte Carlo.  
 FCAM_software_doc.pdf: documentation and examples.  
 tutorial: examples of FCAM applications.  
 tools: awk/bash scripts for one-dimensional free energy integration and partitioning neighbors search.  
