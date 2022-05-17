@@ -1,4 +1,4 @@
-# Software tools for evaluation of enhanced-sampling MD simulation data using the Force-Correction Analysis Method (FCAM)
+# Force-Correction Analysis Method (FCAM) for evaluation of free-energy landscapes based on enhanced-sampling MD simulation data
 
 Please cite:
 
