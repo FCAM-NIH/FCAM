@@ -1,4 +1,0 @@
-COLVAR_FILE ../traj2/meta.1.equil.colvars.traj2 
-COLVAR_FILE ../meta.1.equil.colvars.traj
-CV-CL 4 -180  180 360 PERIODIC
-READ_EPOINTS ../results/eff_points.out

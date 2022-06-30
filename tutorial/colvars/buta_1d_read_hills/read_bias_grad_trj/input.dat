@@ -1,5 +1,0 @@
-COLVAR_FILE ../../buta_1d/meta.1.equil.colvars.traj
-COLVAR_FILE ../../buta_1d/traj2/meta.1.equil.colvars.traj2
-CV-CL 4 -180  180 360 PERIODIC
-READ_EPOINTS ../../buta_1d/results/eff_points.out
-READ_BIAS_GRAD_TRJ ../multiple_traj/results/bias_grad.out 

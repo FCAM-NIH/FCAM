@@ -1,3 +1,0 @@
-CV-CL 4 -180  180 360 PERIODIC
-READ_GRAD_PMF ../results/grad_on_eff_points.out
-READ_GRAD_PMF ../traj2/results/grad_on_eff_points.out

@@ -1,5 +1,0 @@
-NOTE: The program only reads time (or frame) and bias gradient (second column in this example) 
-from the file specified through READ_BIAS_GRAD_TRJ, the other columns are not necessary (the column 
-after the gradient is assumed to be the Gaussian energy which is read only if Gaussian energy filtering 
-, -gefilt , is used [advanced users option]). 
-The obtained free energy gradients should be identical to the ones in ../multiple_traj/results/ 
