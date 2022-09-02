@@ -30,7 +30,7 @@ fgrep -v \# $1 | awk '{if(NF>0) print $0}' | awk -v step=$step 'BEGIN{f[1]=0}{i+
 
 fgrep -v \# $1 | awk '{if(NF>0) print $0}' > pippo
 
-reff=`paste fes_analytic.out pippo | awk -v ini=$ini -v fin=$fin  '{if($NF>0&&$1>ini&&$1<fin) printf"%f %f \n",$1,$2}' | sort -n -k2 | head -n1 |  awk '{print $2}'`
+reff=`paste fes_analytic.out pippo | awk -v ini=$ini -v fin=$fin  '{if($NF>0&&$1>=ini&&$1<=fin) printf"%f %f \n",$1,$2}' | sort -n -k2 | head -n1 |  awk '{print $2}'`
 
 paste fes_analytic.out pippo | awk -v ref=$reff 'BEGIN{f[1]=0;i=0}{i++;weight[i]=$NF;if(i==1&&weight[i]>0) print $1,$2-ref;if(i==1&&weight[i]==0) print $1,$2;if(i>1&&(weight[i]>0||weight[i-1]>0)) print $1,$2-ref;if(i>1&&(weight[i]==0&&weight[i-1]==0)) print $1,$2}' > pluto ; mv pluto fes_analytic.out
 
