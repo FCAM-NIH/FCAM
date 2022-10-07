@@ -568,6 +568,9 @@ for line in f:
       pluto=np.zeros((ndim),dtype=np.int8)
       if nparts>2: 
         if str(parts[2])=="REMOVE_COMP":
+          if len(pluto)==0:
+            print ("ERROR: to use REMOVE_COMP GRID information must be provided before reading the free energy gradients in the input file")
+            sys.exit()
           for i in range (3,nparts):
              pluto[int(parts[i])-1]=1
       if nffiles==0:
@@ -1509,10 +1512,11 @@ if read_ffile:
                for j in range(0,ndim):
                   weightr[:,j]=tryarray[:,2*ndim]
            #weightr=tryarray[:,2*ndim]
-           # REMOVE BIAS COMPONENTS IF REQUESTED 
-           for j in range(0,ndim):
-              if rcvcomp[n][j]==1:
-                weightr[:,j]=np.zeros((len(tryarray)))           
+           # REMOVE BIAS COMPONENTS IF REQUESTED
+           if len(rcvcomp[n])>0: 
+             for j in range(0,ndim):
+                if rcvcomp[n][j]==1:
+                  weightr[:,j]=np.zeros((len(tryarray)))           
            neffpoints=len(colvarseff)
            weighttot=weightr
            grad=np.zeros((neffpoints,ndim)) 
@@ -1533,10 +1537,11 @@ if read_ffile:
                for j in range(0,ndim):
                   weightr[:,j]=tryarray[:,2*ndim]   
            #weightr=tryarray[:,2*ndim]
-           # REMOVE BIAS COMPONENTS IF REQUESTED 
-           for j in range(0,ndim):
-              if rcvcomp[n][j]==1:
-                weightr[:,j]=np.zeros((len(tryarray)))     
+           # REMOVE BIAS COMPONENTS IF REQUESTED
+           if len(rcvcomp[n])>0: 
+             for j in range(0,ndim):
+                if rcvcomp[n][j]==1:
+                  weightr[:,j]=np.zeros((len(tryarray)))     
            weighttot=weighttot+weightr 
            gradr=tryarray[:,ndim:2*ndim]
            for j in range(0,ndim):
