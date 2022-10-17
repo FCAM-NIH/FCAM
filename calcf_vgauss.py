@@ -23,8 +23,8 @@ def parse():
                         type=str, required=False)
     parser.add_argument("-kb", "--kb", help="Boltzmann factor to define free energy units.", \
                         default=-1,type=float, required=False)
-    parser.add_argument("-wf", "--widthfactor", help="Scaling factor of the width (wfact) to assign the force constant (k=kb*temp*(wfact*wfact)/(width*width); default is 1 (width is read in the GRID defined in the input file)", \
-                        default=1.0,type=float, required=False)
+    parser.add_argument("-wf", "--widthfactor", help="Scaling factor of the width (wfact) to assign the force constant (k=kb*temp*(wfact*wfact)/(width*width); default is 2 (width is read in the GRID defined in the input file)", \
+                        default=2.0,type=float, required=False)
     parser.add_argument("-colv_time_prec", "--colv_time_prec", help="Precision for reading the time column in COLVAR_FILE and HILLS_FILE", \
                         default=-1,type=int, required=False)
     parser.add_argument("-colvarbias_column", "--read_colvarbias_column", help="read biasing force from COLVAR_FILE at a specified number of columns after the associated CV (e.g. would be 1 if it is right after the CV)", \
