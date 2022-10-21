@@ -906,7 +906,7 @@ def fast_calc_eff_points(numepoints, effparray, npointsins):
    myshift=np.ones((ndim),dtype=np.int64)
    mywidth=width
 
-   newnpointsv=npointsv
+   newnpointsv=npointsv+1
    newlowbound=lowbound
    newupbound=upbound
    if do_boundaries==False:
