@@ -2,6 +2,7 @@ import numpy as np
 import argparse, os, sys
 from glob import glob
 from copy import deepcopy
+from numba import jit
 import time
 start_time = time.time()
 
@@ -813,6 +814,7 @@ if do_gefilter:
 
 # ROUTINE TO CALCULATE THE NUMBER OF EFFECTIVE POINTS (USEFUL TO REDUCE NUMBER OF POINTS AND THUS FORCE CALCULATIONS)
 
+@jit(nopython=True)
 def calc_eff_points(numpoints, inputarray, npointsins):
    diffc=np.zeros((numpoints,ndim))
    distance=np.zeros((numpoints))
@@ -820,7 +822,7 @@ def calc_eff_points(numpoints, inputarray, npointsins):
    neffp=1 
    ceff=np.zeros((numpoints,ndim))
    ceff[0,:]=inputarray[0,:]
-   numinbin[0]=1
+   numinbin[0]=npointsins[0]
    totperiodic=np.sum(periodic[0:ndim])
    for i in range(1,numpoints):
       diffc[0:neffp,:]=ceff[0:neffp,:]-inputarray[i,:]
@@ -842,7 +844,8 @@ def calc_eff_points(numpoints, inputarray, npointsins):
 
 # try to do a faster routine 
 
-def calc_eff_points_bins(numepoints, effparray, npointsins):
+@jit(nopython=True)
+def calc_eff_points_bin(numepoints, effparray, npointsins):
    colvarsbineff=np.zeros((numepoints, ndim))
    nbins=1
    mywidth=width
@@ -852,17 +855,33 @@ def calc_eff_points_bins(numepoints, effparray, npointsins):
    colvarbin=np.zeros(ndim)
    numinbin=np.zeros((numepoints),dtype=np.int64)
    totperiodic=np.sum(periodic[0:ndim])
-   colvarsbineff[0,:]=lowbound+0.5*box+0.5*mywidth
-   for i in range(0,numepoints):
-      diffc[i,:]=effparray[i,:]-(lowbound+0.5*box)
-      if totperiodic>0:
-        diffc[i,:]=diffc[i,:]/box[0:ndim]
-        diffc[i,:]=diffc[i,:]-np.rint(diffc[i,:])*periodic[0:ndim]
-        diffc[i,:]=diffc[i,:]*box[0:ndim]
-      colvarbin=0.5*mywidth+mywidth*np.floor(diffc[i,:]/mywidth)+lowbound+0.5*box
-      colvarbin=(colvarbin-(lowbound+0.5*box))/box[0:ndim]
-      colvarbin=colvarbin-np.rint(colvarbin)*periodic[0:ndim]
-      colvarbin=colvarbin*box[0:ndim]+(lowbound+0.5*box)
+   # assign first bin   
+   #diffc[0,:]=effparray[0,:]-(lowbound+0.5*box)
+   diffc[0,:]=effparray[0,:]-lowbound
+   #if totperiodic>0:
+   #  diffc[0,:]=diffc[0,:]/box[0:ndim]
+   #  diffc[0,:]=diffc[0,:]-np.rint(diffc[0,:])*periodic[0:ndim]
+   #  diffc[0,:]=diffc[0,:]*box[0:ndim]
+   colvarbin=lowbound+mywidth*(0.5+np.floor(diffc[0,:]/mywidth))
+   #colvarbin=0.5*mywidth+mywidth*np.floor(diffc[0,:]/mywidth)+lowbound+0.5*box
+   #colvarbin=(colvarbin-(lowbound+0.5*box))/box[0:ndim]
+   #colvarbin=colvarbin-np.rint(colvarbin)*periodic[0:ndim]
+   #colvarbin=colvarbin*box[0:ndim]+(lowbound+0.5*box)     
+   ##colvarsbineff[0,:]=lowbound+0.5*box+0.5*mywidth
+   colvarsbineff[0,:]=colvarbin
+   numinbin[0]=npointsins[0]
+   for i in range(1,numepoints):
+      #diffc[i,:]=effparray[i,:]-(lowbound+0.5*box)
+      diffc[i,:]=effparray[i,:]-lowbound
+      #if totperiodic>0:
+      #  diffc[i,:]=diffc[i,:]/box[0:ndim]
+      #  diffc[i,:]=diffc[i,:]-np.rint(diffc[i,:])*periodic[0:ndim]
+      #  diffc[i,:]=diffc[i,:]*box[0:ndim]
+      #colvarbin=0.5*mywidth+mywidth*np.floor(diffc[i,:]/mywidth)+lowbound+0.5*box
+      colvarbin=lowbound+mywidth*(0.5+np.floor(diffc[i,:]/mywidth))     
+      #colvarbin=(colvarbin-(lowbound+0.5*box))/box[0:ndim]
+      #colvarbin=colvarbin-np.rint(colvarbin)*periodic[0:ndim]
+      #colvarbin=colvarbin*box[0:ndim]+(lowbound+0.5*box)
       diffc[0:nbins,:]=colvarsbineff[0:nbins,:]-colvarbin[:]
       if totperiodic>0:
         diffc[0:nbins,:]=diffc[0:nbins,:]/box[0:ndim]
@@ -886,19 +905,30 @@ def fast_calc_eff_points(numepoints, effparray, npointsins):
    diffc=np.zeros((numepoints,ndim))
    myshift=np.ones((ndim),dtype=np.int64)
    mywidth=width
+
+   newnpointsv=npointsv
+   newlowbound=lowbound
+   newupbound=upbound
+   if do_boundaries==False:
+     newlowbound=np.amin(effparray, axis=0)
+     newupbound=np.amax(effparray, axis=0) 
+     newlowbound=np.where(newlowbound<lowbound,newlowbound,lowbound)
+     newupbound=np.where(newupbound>upbound,newupbound,upbound)
+     newnpointsv=1+np.rint((newupbound-newlowbound)/mywidth)
+
    shift=1
    myshift[0]=1
    binid=np.ones((numepoints),dtype=np.int64)
    for i in range (1,ndim):
-      #myshift[i]=2*shift*(2*npointsv[i])
-      myshift[i]=shift*2*(npointsv[i])
+      myshift[i]=shift*newnpointsv[i-1]
       shift=myshift[i]
-   totperiodic=np.sum(periodic[0:ndim])
-   diffc[:,:]=effparray[:,:]-(lowbound+0.5*box) 
-   if totperiodic>0:
-     diffc[:,:]=diffc[:,:]/box[0:ndim]
-     diffc[:,:]=diffc[:,:]-np.rint(diffc[:,:])*periodic[0:ndim]
-     diffc[:,:]=diffc[:,:]*box[0:ndim]
+   #totperiodic=np.sum(periodic[0:ndim])
+   #diffc[:,:]=effparray[:,:]-(lowbound+0.5*box) 
+   #if totperiodic>0:
+   #  diffc[:,:]=diffc[:,:]/box[0:ndim]
+   #  diffc[:,:]=diffc[:,:]-np.rint(diffc[:,:])*periodic[0:ndim]
+   #  diffc[:,:]=diffc[:,:]*box[0:ndim]
+   diffc[:,:]=effparray[:,:]-lowbound
    bingrid=np.floor(diffc[:,:]/mywidth) 
    binid=np.sum(bingrid*myshift,axis=1)
    effbinid=np.unique(binid,return_index=True,return_inverse=True,return_counts=True)
@@ -909,11 +939,15 @@ def fast_calc_eff_points(numepoints, effparray, npointsins):
    numinpoints=np.zeros((neffp),dtype=np.int64)
    for i in range (0,neffp):
       numinpoints[i]=np.sum(npointsins[effindexbin[i]])
-   colvarbin=0.5*mywidth+mywidth*bingrid[effbinid[1][:],:]+(lowbound+0.5*box)
-   if totperiodic>0:
-     colvarbin=(colvarbin-(lowbound+0.5*box))/box[0:ndim]
-     colvarbin=colvarbin-np.rint(colvarbin)*periodic[0:ndim]
-     colvarbin=colvarbin*box[0:ndim]+(lowbound+0.5*box)     
+   #colvarbin=0.5*mywidth+mywidth*bingrid[effbinid[1][:],:]+(lowbound+0.5*box)
+   colvarbin=lowbound+mywidth*(0.5+bingrid[effbinid[1][:],:])
+
+   # to do: mask bins out of perdiodic boundaries (if found)
+
+   #if totperiodic>0:
+   #  colvarbin=(colvarbin-(lowbound+0.5*box))/box[0:ndim]
+   #  colvarbin=colvarbin-np.rint(colvarbin)*periodic[0:ndim]
+   #  colvarbin=colvarbin*box[0:ndim]+(lowbound+0.5*box)     
    return colvarbin[0:neffp,0:ndim], neffp, numinpoints[0:neffp]  
 
 # DO LABELS: ASSIGN BIN ALONG A COLVAR FILE
