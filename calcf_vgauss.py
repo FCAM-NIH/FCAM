@@ -862,7 +862,14 @@ def calc_eff_points_bin(numepoints, effparray, npointsins):
    #  diffc[0,:]=diffc[0,:]/box[0:ndim]
    #  diffc[0,:]=diffc[0,:]-np.rint(diffc[0,:])*periodic[0:ndim]
    #  diffc[0,:]=diffc[0,:]*box[0:ndim]
-   colvarbin=lowbound+mywidth*(0.5+np.floor(diffc[0,:]/mywidth))
+   bingrid=np.floor(diffc[0,:]/mywidth)
+   if totperiodic>0:
+     tmpdiffc=mywidth*(0.5+bingrid)-0.5*box
+     tmpdiffc=tmpdiffc/box[0:ndim]
+     tmpdiffc=tmpdiffc-np.rint(tmpdiffc)*periodic[0:ndim]
+     tmpdiffc=tmpdiffc*box[0:ndim]
+     bingrid=np.rint(((tmpdiffc+0.5*box)/mywidth)-0.5)
+   colvarbin=lowbound+mywidth*(0.5+bingrid)
    #colvarbin=0.5*mywidth+mywidth*np.floor(diffc[0,:]/mywidth)+lowbound+0.5*box
    #colvarbin=(colvarbin-(lowbound+0.5*box))/box[0:ndim]
    #colvarbin=colvarbin-np.rint(colvarbin)*periodic[0:ndim]
@@ -873,12 +880,19 @@ def calc_eff_points_bin(numepoints, effparray, npointsins):
    for i in range(1,numepoints):
       #diffc[i,:]=effparray[i,:]-(lowbound+0.5*box)
       diffc[i,:]=effparray[i,:]-lowbound
+      bingrid=np.floor(diffc[i,:]/mywidth)
+      if totperiodic>0:
+        tmpdiffc=mywidth*(0.5+bingrid)-0.5*box
+        tmpdiffc=tmpdiffc/box[0:ndim]
+        tmpdiffc=tmpdiffc-np.rint(tmpdiffc)*periodic[0:ndim]
+        tmpdiffc=tmpdiffc*box[0:ndim]
+        bingrid=np.rint(((tmpdiffc+0.5*box)/mywidth)-0.5)
       #if totperiodic>0:
       #  diffc[i,:]=diffc[i,:]/box[0:ndim]
       #  diffc[i,:]=diffc[i,:]-np.rint(diffc[i,:])*periodic[0:ndim]
       #  diffc[i,:]=diffc[i,:]*box[0:ndim]
       #colvarbin=0.5*mywidth+mywidth*np.floor(diffc[i,:]/mywidth)+lowbound+0.5*box
-      colvarbin=lowbound+mywidth*(0.5+np.floor(diffc[i,:]/mywidth))     
+      colvarbin=lowbound+mywidth*(0.5+bingrid)     
       #colvarbin=(colvarbin-(lowbound+0.5*box))/box[0:ndim]
       #colvarbin=colvarbin-np.rint(colvarbin)*periodic[0:ndim]
       #colvarbin=colvarbin*box[0:ndim]+(lowbound+0.5*box)
@@ -929,7 +943,16 @@ def fast_calc_eff_points(numepoints, effparray, npointsins):
    #  diffc[:,:]=diffc[:,:]-np.rint(diffc[:,:])*periodic[0:ndim]
    #  diffc[:,:]=diffc[:,:]*box[0:ndim]
    diffc[:,:]=effparray[:,:]-lowbound
-   bingrid=np.floor(diffc[:,:]/mywidth) 
+   bingrid=np.floor(diffc[:,:]/mywidth)
+   # if periodic check that bin is not out of periodic boundaries (e.g. when value is exactly upper boundary)
+   # otherwise put it back into the periodic interval
+   totperiodic=np.sum(periodic[0:ndim]) 
+   if totperiodic>0:
+     tmpdiffc[:,:]=mywidth*(0.5+bingrid)-0.5*box
+     tmpdiffc[:,:]=tmpdiffc[:,:]/box[0:ndim]
+     tmpdiffc[:,:]=tmpdiffc[:,:]-np.rint(tmpdiffc[:,:])*periodic[0:ndim] 
+     tmpdiffc[:,:]=tmpdiffc[:,:]*box[0:ndim]
+     bingrid=np.rint(((tmpdiffc[:,:]+0.5*box)/mywidth)-0.5)   
    binid=np.sum(bingrid*myshift,axis=1)
    effbinid=np.unique(binid,return_index=True,return_inverse=True,return_counts=True)
    neffp=effbinid[1].size
