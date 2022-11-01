@@ -913,7 +913,7 @@ def calc_eff_points_bin(numepoints, effparray, npointsins):
       numinbin[whichbin]=numinbin[whichbin]+npointsins[i]
    return colvarsbineff, nbins, numinbin[0:nbins]
 
-# fast effective points using fast data binning (not always reliable but very fast, especially for high dimensionality)
+# fast effective points using fast data binning (very fast, especially for high dimensionality)
 
 def fast_calc_eff_points(numepoints, effparray, npointsins):
    diffc=np.zeros((numepoints,ndim))
@@ -948,11 +948,11 @@ def fast_calc_eff_points(numepoints, effparray, npointsins):
    # otherwise put it back into the periodic interval
    totperiodic=np.sum(periodic[0:ndim]) 
    if totperiodic>0:
-     tmpdiffc[:,:]=mywidth*(0.5+bingrid)-0.5*box
-     tmpdiffc[:,:]=tmpdiffc[:,:]/box[0:ndim]
-     tmpdiffc[:,:]=tmpdiffc[:,:]-np.rint(tmpdiffc[:,:])*periodic[0:ndim] 
-     tmpdiffc[:,:]=tmpdiffc[:,:]*box[0:ndim]
-     bingrid=np.rint(((tmpdiffc[:,:]+0.5*box)/mywidth)-0.5)   
+     diffc[:,:]=mywidth*(0.5+bingrid)-0.5*box
+     diffc[:,:]=diffc[:,:]/box[0:ndim]
+     diffc[:,:]=diffc[:,:]-np.rint(diffc[:,:])*periodic[0:ndim] 
+     diffc[:,:]=diffc[:,:]*box[0:ndim]
+     bingrid=np.rint(((diffc[:,:]+0.5*box)/mywidth)-0.5)   
    binid=np.sum(bingrid*myshift,axis=1)
    effbinid=np.unique(binid,return_index=True,return_inverse=True,return_counts=True)
    neffp=effbinid[1].size
