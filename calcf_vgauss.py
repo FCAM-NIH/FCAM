@@ -183,6 +183,7 @@ calc_force_eff=True # True unless is read from input
 
 ncolvars=0
 ndim=0
+cvdict={}
 ngfiles=0
 nefiles=0
 nffiles=0
@@ -501,10 +502,26 @@ for line in f:
         npointsv=[int(parts[4])]
         if len(parts)>5:
           if str(parts[5])=="PERIODIC":
-            periodic=[1] 
+            periodic=[1]
+            if len(parts)>6:
+              if str(parts[6])=="LABEL":
+                if str(parts[7]) in cvdict: 
+                  print ("ERROR: CV LABEL",str(parts[7]),"was already used for another CV")
+                  sys.exit() 
+                cvdict[str(parts[7])]=ndim   
+              else:
+                print ("Unrecognized character:",str(parts[5]))
+                sys.exit()
           else:
-            print ("Unrecognized character:",str(parts[5]))
-            sys.exit()         
+            periodic=[0]  
+            if str(parts[5])=="LABEL":
+              if str(parts[6]) in cvdict:
+                print ("ERROR: CV LABEL",str(parts[6]),"was already used for another CV")  
+                sys.exit() 
+              cvdict[str(parts[6])]=ndim 
+            else:
+              print ("Unrecognized character:",str(parts[5]))
+              sys.exit()         
         else:
           periodic=[0]
       if ndim>0:
@@ -518,9 +535,25 @@ for line in f:
         if len(parts)>5: 
           if str(parts[5])=="PERIODIC":
             periodic.append(1)
+            if len(parts)>6:
+              if str(parts[6])=="LABEL":
+                if str(parts[7]) in cvdict:
+                  print ("ERROR: CV LABEL",str(parts[7]),"was already used for another CV") 
+                  sys.exit()                  
+                cvdict[str(parts[7])]=ndim
+              else:
+                print ("Unrecognized character:",str(parts[5]))
+                sys.exit()
           else:
-            print ("Unrecognized character:",str(parts[5]))
-            sys.exit()
+            periodic.append(0)  
+            if str(parts[5])=="LABEL":
+              if str(parts[6]) in cvdict:
+                print ("ERROR: CV LABEL",str(parts[6]),"was already used for another CV")
+                sys.exit()                
+              cvdict[str(parts[6])]=ndim
+            else:
+              print ("Unrecognized character:",str(parts[5]))
+              sys.exit()
         else:
           periodic.append(0)
       ndim=ndim+1       
@@ -545,7 +578,31 @@ for line in f:
           use_force.append(-1.0)
         else:
           use_force.append(1.0)
-        gfile.append(str(parts[1]))      
+        gfile.append(str(parts[1]))     
+      if nparts>2:
+        if str(parts[2])=="CV_COMP":
+          if nparts>3:  
+            pluto=np.zeros((nparts-3),dtype=np.int8) 
+            if ndim==0:
+              print ("ERROR: to read specific components of the biasing force (through CV_COMP) GRID information must be provided before")
+              sys.exit()
+          else:
+            pluto="ALL"
+            print ("NO SPECIFIC CV components specified though CV_COMP: assuming the trajectory FORCE/GRAD file includes all components")  
+          for i in range (3,nparts):
+             if str(parts[i]) in cvdict:
+               pluto[i-3]=cvdict[str(parts[i])]
+             else:
+               tmpwhichcv=np.array(whichcv)
+               tmppluto=np.where(tmpwhichcv==int(parts[i])-1)
+               pluto[i-3]=np.int8(tmppluto[0])
+      else:
+        print ("NO SPECIFIC CV components specified though CV_COMP: assuming the trajectory FORCE/GRAD file includes all components")  
+        pluto="ALL"  
+      if ngfiles==0:
+        usecomp=[pluto]
+      if ngfiles>0:
+        usecomp.append(pluto)
       ngfiles=ngfiles+1
     if str(parts[0])=="READ_EPOINTS":
       if nefiles==0:
@@ -573,7 +630,7 @@ for line in f:
             print ("ERROR: to use REMOVE_COMP GRID information must be provided before reading the free energy gradients in the input file")
             sys.exit()
           for i in range (3,nparts):
-             pluto[int(parts[i])-1]=1
+             pluto[np.int8(parts[i])-1]=1
       if nffiles==0:
         rcvcomp=[pluto]
       if nffiles>0:
@@ -660,6 +717,12 @@ if calc_force_eff and temp<0:
  
 if read_gfile:
   if colvarbias_column<=0:
+    for k in range (0,ngfiles):
+       if str(usecomp[k])!="ALL": 
+         if do_gefilter:
+           print ("ERROR: gaussian energy filter is not supported when FORCE/GRAD components to read are specified")
+           sys.exit()
+                
     if ngfiles!=1:
       if ngfiles!=ncolvars:
         print ("ERROR: please provide a unique gradient file")
@@ -1197,13 +1260,25 @@ if read_gfile:
       totpoints=0
       for k in range (0,ncolvars):
          if k==0:
-           gradv=[use_force[0]*gradarray[0][totpoints:totpoints+npoints[k],1:ndim+1]]
-           if do_gefilter:
-             gaussenergy=[gradarray[0][totpoints:totpoints+npoints[k],ndim+1]]
+           if str(usecomp[0])=="ALL":       
+             gradv=[use_force[0]*gradarray[0][totpoints:totpoints+npoints[k],1:ndim+1]]
+             if do_gefilter:
+               gaussenergy=[gradarray[0][totpoints:totpoints+npoints[k],ndim+1]]
+           else:
+             tmpgradv=np.zeros((npoints[k],ndim))
+             for j in range(0,len(usecomp[0])):
+                tmpgradv[:,usecomp[0][j]]=use_force[0]*gradarray[0][totpoints:totpoints+npoints[k],j+1]
+             gradv=[tmpgradv]            
          if k>0:
-           gradv.append(use_force[0]*gradarray[0][totpoints:totpoints+npoints[k],1:ndim+1])
-           if do_gefilter:
-             gaussenergy.append(gradarray[0][totpoints:totpoints+npoints[k],ndim+1]) 
+           if str(usecomp[0])=="ALL":  
+             gradv.append(use_force[0]*gradarray[0][totpoints:totpoints+npoints[k],1:ndim+1])
+             if do_gefilter:
+               gaussenergy.append(gradarray[0][totpoints:totpoints+npoints[k],ndim+1]) 
+           else:
+             tmpgradv=np.zeros((npoints[k],ndim))
+             for j in range(0,len(usecomp[0])):
+                tmpgradv[:,usecomp[0][j]]=use_force[0]*gradarray[0][totpoints:totpoints+npoints[k],j+1]
+             gradv.append(tmpgradv)
          totpoints=totpoints+npoints[k]
     else:
       print ("Reading separate external files with applied force for each COLVAR file ...") 
@@ -1213,17 +1288,30 @@ if read_gfile:
            if npoints[k]!=len(gradarray[k]):
              print ("ERROR: gradient file doesn't match COLVAR file")
              sys.exit()
-           gradv=[use_force[k]*gradarray[k][:,1:ndim+1]]
-           if do_gefilter:
-             gaussenergy=[gradarray[k][:,ndim+1]]
+           if str(usecomp[k])=="ALL":  
+             gradv=[use_force[k]*gradarray[k][:,1:ndim+1]]
+             if do_gefilter:
+               gaussenergy=[gradarray[k][:,ndim+1]]
+           else:
+             tmpgradv=np.zeros((npoints[k],ndim))
+             for j in range(0,len(usecomp[0])):
+                tmpgradv[:,usecomp[k][j]]=use_force[k]*gradarray[k][:,j+1] 
+             gradv=[tmpgradv]
          if k>0:
            gradarray.append(np.loadtxt(gfile[k]))
            if npoints[k]!=len(gradarray[k]):
              print ("ERROR: gradient file doesn't match COLVAR file")
              sys.exit()
-           gradv.append(use_force[k]*gradarray[k][:,1:ndim+1])
-           if do_gefilter:
-             gaussenergy.append(gradarray[k][:,ndim+1])
+           if str(usecomp[k])=="ALL":
+             gradv.append(use_force[k]*gradarray[k][:,1:ndim+1])
+             if do_gefilter:
+               gaussenergy.append(gradarray[k][:,ndim+1])
+           else:
+             tmpgradv=np.zeros((npoints[k],ndim))
+             for j in range(0,len(usecomp[0])):
+                tmpgradv[:,usecomp[k][j]]=use_force[k]*gradarray[k][:,j+1]
+             gradv.append(tmpgradv)
+             
   if colvarbias_column>0:
     tmpwhichcv=np.array(whichcv)
     for k in range (0,ncolvars):
