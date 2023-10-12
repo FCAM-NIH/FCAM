@@ -759,6 +759,15 @@ if do_fes:
 
   print ("Average error on free energy differences between neighbor bins is:",tot_error_diff/error_count)   
   print ("Maximum error on free energy differences between neighbor bins is:",max_error_diff)
+
+#  The code below calculates a minimum free energy path based either on MC of the pathway 
+#  with energy given by the likelihood of the path.
+#  The code first calculates a path running a few KMC cycles until a transition between the two requested
+#  bins is observed. Then it choses the pathway with best likelihood (log of the product of normalized transition probabilities).
+#  The next step (local search) is to refine that pathway sending KMC runs from intermediate points. This will generate new branches that may 
+#  end up on the previous pathway or straight to the end. By connecting neighbouring bins this will generate a new pathway
+#  which is accepted based on MC. It is useful to do this with an annealing scheme by reducing the temperature of MC.   
+#  Annealing is done by restrarting at a reduced temperature and reading the previous pathway.
      
 if do_mfepath:
 
@@ -766,7 +775,6 @@ if do_mfepath:
   with open(per_iter_path_file, 'a') as f:
       f.write("# Start global search \n")
 
-  #for nn in range (0,numpaths):
   for kk in range (0,totpaths):
      with open(per_iter_path_file, 'a') as f:
          f.write("# STEP: %s \n" % (kk))
@@ -787,12 +795,6 @@ if do_mfepath:
              for j in range(0,nneigh[state]):
                 thisp=thisp+prob[state,j]
                 if thisp > rand:
-                  #if np.isnan(logprobpath[state,j]):
-                  #  state=startbinmfepath
-                  #  lnlike=0
-                  #  path=[state]
-                  #  break
-                  #else:
                   lnlike=lnlike-logprobpath[state,j]
                   enerlike.append(-logprobpath[state,j])
                   state=neigh[state,j]
@@ -840,7 +842,6 @@ if do_mfepath:
      for nn in range (0,numpaths):
         rand=np.random.rand()
         initstate=int(np.rint(rand*(len(minpath)-2)))
-        #initstate=int(np.rint(1+rand*(len(minpath)-3)))
         if initstate<0:
           initstate=0 
         rand=np.random.rand()
@@ -859,7 +860,6 @@ if do_mfepath:
         enerlike=minpathenerlike[0:initstate+1] 
         count=0
         toend=False
-        #while state != fstate or state != finalbinmfepath:
         while state != fstate:
              if count>numpathtrials:
                break
@@ -871,12 +871,6 @@ if do_mfepath:
              for j in range(0,nneigh[state]):
                 thisp=thisp+prob[state,j]
                 if thisp > rand:
-                  #if np.isnan(logprobpath[state,j]):
-                  #  state=startbinmfepath
-                  #  lnlike=0
-                  #  path=[state]
-                  #  break
-                  #else:
                   lnlike=lnlike-logprobpath[state,j]
                   enerlike.append(-logprobpath[state,j])
                   state=neigh[state,j]
@@ -967,7 +961,6 @@ if do_mfepath:
            else:
              f.write("%i %s %s \n" % (minpathdef[nn]," 0.0 "," 0.0 "))
          else:
-           #ener_diff_tmp=(2*kb*pathtemp)*(-minpathdefenerlike[nn]+np.log(freqpath[minpathdef[nn-1],0]))
            lograte=-minpathdefenerlike[nn]+np.log(freqpath[minpathdef[nn-1],0])
            for jj in range (0,nneigh[minpathdef[nn]]):    
               if neigh[minpathdef[nn],jj]==minpathdef[nn-1]:
@@ -980,8 +973,9 @@ if do_mfepath:
            else:
              f.write("%i %s %s \n" % (minpathdef[nn],ener_tot_tmp,ener_diff_tmp))
 
+# The code below is a systematic search algorithm for finding a minimum free energy path 
+
 if do_spath:
-  #atnum=np.zeros((npoints+1),dtype=np.int32)
   e_lnprob=np.zeros((npoints))
   come_from=np.zeros((npoints),dtype=np.int32)
   e_lnprob[:]=2.0
@@ -1010,8 +1004,6 @@ if do_spath:
                this_max = this1
                fromwho = this
                init=False
-     #with open(per_iter_path_file, 'a') as f:
-     #    f.write("WHERE: %s %s %s %s \n" % (ngrp,this_max,fromwho,tmp_max_lnp))
      atnum.append(this_max)
      e_lnprob[this_max] = tmp_max_lnp
      come_from[this_max] = fromwho
@@ -1026,7 +1018,6 @@ if do_spath:
            f.write("# colvars, pathstate, free energy, deltaF \n")
            for j in range (0,ndim):
               f.write("%s " % (tmparray[this,j]))
-           #f.write("%i %s %s \n" % (this,fesarray[this,ndim],e_lnprob[this]))
            ener_tot_tmp=0.0
            if read_fes: 
              f.write("%i %s %s \n" % (this,fesarray[this,ndim]," 0.0 "))
@@ -1056,14 +1047,6 @@ if do_spath:
            f.write("%s %s \n" % (-ener_like,len_path))
 
        break
-
-#   with open("per_iteration_kmc_output.dat", 'a') as f:
-#       np.savetxt(f, tmparray[state,0:ndim], newline='')
-#       f.write(b"\n")
-#       f.write("%f " % (timekmc))
-#       for i in range(0,ndim):
-#          f.write("%f " % (tmparray[state,i]))
-#       f.write("%i \n" % (state))
 
 print("--- %s seconds ---" % (time.time() - start_time))
 

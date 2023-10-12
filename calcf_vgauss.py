@@ -209,6 +209,10 @@ cfile='none'
 hfile='none'
 
 # INPUT PARSER
+# It reads an input file with relevant information (see manual):
+# grid parameters and files with trajectories of collective variables and/or forces, plus other specifications.
+# It is structured to be able to read an unlimited number of files. Collective variables specified on the grid can be labeled and recognized
+# as specific components on force/gradient trajectory files using a dictionary.  
 
 f=open (ifile, 'r') 
 for line in f:
@@ -655,6 +659,8 @@ elif kb<0 and do_just_eff_points==False and do_just_hills_bias==False and read_f
     print ("ERROR: please specify either the units (-units) or the value of the Boltzmann factor (-kb option)")
     sys.exit()
 
+# Below it checks which options have been selected to proceed with different calculations
+
 if colvarbias_column>0:
   read_gfile=True
   do_hills_bias=False
@@ -878,8 +884,14 @@ if do_gefilter:
        else:
          colgenerread.append(colgener-1)
 
-# ROUTINE TO CALCULATE THE NUMBER OF EFFECTIVE POINTS (USEFUL TO REDUCE NUMBER OF POINTS AND THUS FORCE CALCULATIONS)
+# Below there are a set of routines to calculate the number of effective points on which forces will be calculated.
+# The fastest and default routune is fast_calc_eff_points, which provides points on a regular grid.
+# Note that effective points that are not explored (far from sampled ones) are excluded.
+# TO DO: might be useful to do fast a routine for a non regular grid, e.g. using Daura or similar clustering scheme, that 
+# better captures the space topology.
 
+# This routine calculates effective points based on spherical cut-off (upperbound-lowerbound/number of points in each direction).
+# Doesn't give memory issues or overflow but it's slow in high dimensionality.
 @jit(nopython=True)
 def calc_eff_points(numpoints, inputarray, npointsins):
    diffc=np.zeros((numpoints,ndim))
@@ -908,8 +920,8 @@ def calc_eff_points(numpoints, inputarray, npointsins):
       numinbin[whichbin]=numinbin[whichbin]+npointsins[i]
    return ceff[0:neffp], neffp, numinbin[0:neffp]
 
-# try to do a faster routine 
-
+# This routine calculates effective points on a regular grid. Does not give memory issues or overflow
+# but is slow in high dimensionality. 
 @jit(nopython=True)
 def calc_eff_points_bin(numepoints, effparray, npointsins):
    colvarsbineff=np.zeros((numepoints, ndim))
@@ -959,7 +971,12 @@ def calc_eff_points_bin(numepoints, effparray, npointsins):
       numinbin[whichbin]=numinbin[whichbin]+npointsins[i]
    return colvarsbineff, nbins, numinbin[0:nbins]
 
-# fast effective points using fast data binning (very fast, especially for high dimensionality)
+# This routine calculates effective points on a regular grid. It is based on setting a bin identity number given by 
+# the sum of the bin grid vectors (integer associated to each bin in each component) scaled by specific factors 
+# for each component. In this manner, effective bins are associated unique identity numbers.
+# The routine is very fast and can be used up to large dimensionality (around 10). Might give overflow at dimensionality beyond 10.
+# It is fully tested and reliable.
+# 
 
 def fast_calc_eff_points(numepoints, effparray, npointsins):
    diffc=np.zeros((numepoints,ndim))
@@ -1032,7 +1049,7 @@ def assign_bins(numpoints, colvars, numepoints, effparray):
    return labelbin
 
 
-#ROUTINE TO CALCULATE THE FORCE ON A SET OF POINTS
+#ROUTINE TO CALCULATE THE FORCE ON A SET OF POINTS BASED ON THE FORCE-CORRECTION ANALYSIS METHOD (FCAM)
 
 def calc_vhar_force(numepoints, numpoints, effparray, colvars, gradbias):
    grade=np.zeros((numepoints,ndim))
@@ -1070,8 +1087,13 @@ def calc_vhar_force(numepoints, numpoints, effparray, colvars, gradbias):
           grade2[i,:]=grade2[i,:]/tweights2[i]    
    return grade,tweights,grade1,tweights1,grade2,tweights2
 
-# calc HILLS forces
-
+# Rountine to calculate instantaneous biasing forces for metadynamics simulations from HILLS files (files with history of the Gaussians added).
+# Note that this will entail binning errors if the metdadynamics code stores forces on a grid.
+# The output must be carefully checked if trajectories are not restarted exactly. The code try to find an optimal solution, 
+# so in many cases it will work finem but double check is recommended.
+# For instance, check that the output Gaussian energy from the code below is the same of the original metadynamics code. 
+# Multiple HILLS files can be specified alongside selected biased coordinates (see manual).
+ 
 if do_hills_bias:
   print ("Calculating metadynamics bias forces on each COLVAR point of the selected variables from the HILLS files")
   print ("which store the deposited Gaussian hills (TIME CV1 CV2... SIGMA_CV1 SIGMA_CV2... HEIGHT)")
@@ -1173,6 +1195,7 @@ if do_hills_bias:
                 f.write("%s " % " 0 ")
                 f.write("%s \n" % (k))
 
+# This routine calculates the instantaneous biasing forces for umbrella sampling calculations from the provided force constants (see manual).
 if do_umbrella_bias:
   print ("Calculating umbrella sampling bias forces on each COLVAR point of the selected variables from the centers and force constants provided")
 
@@ -1209,7 +1232,8 @@ if do_umbrella_bias:
                 f.write("%s \n" % (k))
        
 # READ EXTERNAL FILE WITH GRADIENTS
-       
+# The program can read multiple files with all components or with specified ones.
+# It can also read a single file with appended trajectories. In either case the order must be the same of the COLVAR files.       
 if read_gfile:
   print ("Reading applied forces per frame from external file...") 
   if colvarbias_column<=0:
@@ -1282,7 +1306,7 @@ if read_gfile:
        if k>0:
          gradv.append(-colvarsarray[k][:,tmpwhichcv[0:ndim]+1+colvarbias_column])
           
-# create masked colvarsarray and gradv eliminating frames before and after restart
+# Some filtering if requested:create masked colvarsarray and gradv eliminating frames before and after restart
 
 if nfrestart>0:
   for i in range (0,ncolvars):
@@ -1303,7 +1327,7 @@ if nfrestart>0:
   #   print colvarsarray[0][i,0],colvarsarray[0][i,1],colvarsarray[0][i,2],gradv[0][i,0],gradv[0][i,1] 
   #sys.exit()     
 
-# create masked colvarsarray and gradv eliminating values beyond boundaries
+# More filtering if requested: create masked colvarsarray and gradv eliminating values beyond boundaries
 if do_boundaries:
   for i in range (0,ncolvars):
      tmpcolvarsarray=colvarsarray[i]
@@ -1332,7 +1356,7 @@ if nfrestart>0:
   #sys.exit()     
 
 
-# create masked colvarsarray and gradv filtering values according to the difference between the calculated Gaussian energy
+# Other filtering: create masked colvarsarray and gradv filtering values according to the difference between the calculated Gaussian energy
 # the one repoted in the COLVAR file
 
 if do_gefilter: 
@@ -1362,8 +1386,7 @@ for i in range (0,ncolvars):
    else:
      print ("NUMBER OF POINTS FOR WALKER ",i,": ",len(colvarsarray[i][:,0]))
 
-# CALCULATE NUMBER OF EFFECTIVE POINTS IF REQUIRED
-
+# CALCULATE NUMBER OF EFFECTIVE POINTS IF REQUESTED
 if calc_epoints:
   print ("Calculating effective points...")
   for k in range (0,ncolvars):
@@ -1426,7 +1449,8 @@ if calc_epoints:
          for j in range (0,ndim):
             f.write("%s " % (colvarseff[i,j]))
          f.write("%s \n" % (numinpoint[i]))
- 
+
+# READ EFFECTIVE POINTS FROM FILE: multiple files can be specified and the code will merge them. 
 if read_efile:
   print ("Reading effective points from external file...")
   for n in range(0,nefiles):
@@ -1469,7 +1493,7 @@ if read_efile:
 
 # DEBUG  
 
-# CALC FORCE ON EFFECTIVE POINTS
+# CALC FORCE ON EFFECTIVE POINTS USING FCAM
 
 if calc_force_eff:
   print ("Calculating forces on effective points...")
@@ -1593,8 +1617,10 @@ if do_label:
                 f.write("%s %s \n " % (binlabel[i],k))
 
 
-# READ FORCE AND EFFECTIVE POINTS FROM EXTERNAL FILE
-
+# READ FORCE AND EFFECTIVE POINTS FROM EXTERNAL FILE.
+# Multiple files can be specified and the code will combine them 
+# giving a best estimate. This also provides a trivial parallelization scheme
+# where forces can be calculated from individual trajectories and then merged together. 
 if read_ffile:
   print ("Reading effective points and forces from external file...")
   if nffiles>1:
