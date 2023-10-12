@@ -2,6 +2,7 @@ import numpy as np
 import argparse, os, sys
 from glob import glob
 from copy import deepcopy
+from errors import FCAM_Error
 from numba import jit
 import time
 start_time = time.time()
@@ -717,14 +718,13 @@ if read_gfile:
          if do_gefilter:
            print ("ERROR: gaussian energy filter is not supported when FORCE/GRAD components to read are specified")
            sys.exit()
-                
-    if ngfiles!=1:
-      if ngfiles!=ncolvars:
-        print ("ERROR: please provide a unique gradient file")
-        print ("or a gradient file for each colvar.")
-        print ("Note that in either case this must be consistent with the ORDERED set of colvar files provided.")
-        sys.exit()
 
+    if ngfiles!=1:
+        try:
+            assert(ngfiles == ncolvars)
+        except AssertionError:
+            raise FCAM_Error("Please provide a unique gradient file or a gradient file for each colvar. Note that in either case this must be consistent with the ORDERED set of colvar files provided")
+                
 if do_hills_bias or do_umbrella_bias:
   if print_bias:
     with open(bias_grad_file, 'w') as f:
