@@ -8,6 +8,15 @@ from numba import jit
 import time
 start_time = time.time()
 
+# This is a python program to derive free energy landscapes and minimum free energy paths from mean forces using kinetic Monte Carlo
+# If you use this code please cite:
+#
+# Marinelli, F. and J.D. Faraldo-Gomez, Force-Correction Analysis Method for Derivation of Multidimensional Free-Energy Landscapes from Adaptively Biased Replica Simulations. J Chem Theory Comput, 2021, 17: p. 6775-6788
+#
+# Manual and tutorial can be downloaded from https://github.com/FCAM-NIH/FCAM
+#
+
+### Argparser ###
 def parse():
     parser = argparse.ArgumentParser()
     parser.add_argument("-noforces","--nouseforces", \
@@ -170,9 +179,10 @@ elif kb<0:
     print ("ERROR: please specify either the units (-units) or the value of the Boltzmann factor (-kb option)")
     sys.exit() 
 
+# here check some options (use forces or free energy, calculate minimum free energ path etc.), check the manual for detailed explanation.
+
 if do_cutoff:
   nearest=False
-# read the grid with the gradients
 
 if read_neighs:
   calc_neighs=False
@@ -187,16 +197,18 @@ if use_forces==False:
   print ("NOTE: number of variables, lower boundary, width, number of points and periodicity for each variable.") 
 
 if use_forces:
+  # read the grid with the free energy gradients
   forcearray = np.loadtxt(ifile)
   npoints=len(forcearray)
 
 if do_kinetic_cont and calc_neighs:
+  # read file with bin labels along a continuous trajectory to calculate neighbours (kinetic contacts) based on time transitions
   print ("reading labels file")
   labelsarray = np.loadtxt(labelsfile) 
   labelspoints = len(labelsarray)
 
 if read_fes:
-  #do_fes=False
+  # read the grid with the free energy
   fesarray = np.loadtxt(read_fes_file)
   nfespoints=len(fesarray)
   if use_forces:
@@ -219,7 +231,7 @@ if do_mfepath or do_spath:
   with open(per_iter_path_file, 'w') as f:
       f.write("# Like, path lenght \n")
 
-# now read the header
+# now read the header which contains the grid information
 
 headerfile=ifile
 
@@ -251,9 +263,6 @@ for line in f:
 
 # assign lowerboundary, width, number of points for each variable and periodicity 
 
-#with open("per_iteration_kmc_output.dat" , 'w') as f:
-#    f.write("# Iteration, colvar, etc. \n")
-
 lowbound=np.array(lowbound)
 width=np.array(width)
 npointsv=np.array(npointsv)
@@ -283,7 +292,7 @@ else:
 if do_kinetic_cont:
   maxneigh=np.power(3,ndim)-1
 
-#mctemp=mctemp*maxneigh
+# scale MC temperature for path search based on dimensionality
 mctemp=mctemp*2*ndim
 
 if use_forces:
@@ -301,6 +310,7 @@ else:
   tmparray=fesarray
 
 totperiodic=np.sum(period)
+
 # assign neighbours and probabilities
 
 # set valid states
@@ -318,6 +328,7 @@ if read_fes:
     validstates=np.where(np.isfinite(fesarray[:,ndim]))
     stateisvalid=np.where(np.isfinite(fesarray[:,ndim]),1,0)
 
+# Routine to calculate the number of neighbours based on geometric contacts (select closest bins) 
 def calc_neighs_fast(numpoints):
    nneighb=np.zeros((numpoints),dtype=np.int32)
    neighb=np.ones((numpoints,maxneigh),dtype=np.int32)
@@ -332,9 +343,11 @@ def calc_neighs_fast(numpoints):
          diff=diff/box
          diff=diff-np.rint(diff)*period
          diff=diff*box
+       # the code below select all neighbour bins in which only one coordinate changes by the bin size (nearest)
        if nearest:
          dist=np.sum(np.abs(diff)/width,axis=1)
          neighs=np.where(np.rint(dist)==1)
+       # the code below select all neighbour bins in which either of the coordinates vary by the bin size (notnearest)
        else:
          absdist=np.abs(diff)/width
          maxdist=np.amax(absdist,axis=1)
@@ -350,11 +363,13 @@ def calc_neighs_fast(numpoints):
        nneighb[validstates[0][whichneigh[:]]]=nneighb[validstates[0][whichneigh[:]]]+1 
    return nneighb,neighb
 
+# Routine to calculate the number of neighbours based on kinetic transitions between bins (could lose contacts in high dimensionality)
+# labelsarray should contain either one continuous trajectory or multiple appendend trajectories. The routine checks the time step size
+# to evaluate contacts within a single trajectory and skip contacts across trajectories.
 def calc_neighs_kcont(numpoints,mintransitions,maxn):
    nneighb=np.zeros((numpoints),dtype=np.int32)
    neighb=np.ones((numpoints,maxn),dtype=np.int32)
    numtrans=np.zeros((numpoints,maxn),dtype=np.int32) 
-   #distancen=np.zeros((numpoints,maxn))
    neighb=-neighb
    ncoll=np.ma.size(labelsarray,axis=1)
    for i in range(0,labelspoints-1):
@@ -372,7 +387,6 @@ def calc_neighs_kcont(numpoints,mintransitions,maxn):
       bin2=int(labelsarray[i+1,ncoll-2])
       if bin1>0 and bin2>0 and bin1!=bin2 and stateisvalid[bin1] and stateisvalid[bin2]:
         if time2-time1>0.1*step and time2-time1<1.1*step:
-           #diff=labelsarray[i,1:ndim+1]-labelsarray[i+1,1:ndim+1]
            diff=tmparray[bin1,0:ndim]-tmparray[bin2,0:ndim]
            if totperiodic>0:
              diff=diff/box
@@ -392,8 +406,6 @@ def calc_neighs_kcont(numpoints,mintransitions,maxn):
                if maxdist<1.1:
                  neighb[bin1,nneighb[bin1]]=bin2
                  neighb[bin2,nneighb[bin2]]=bin1            
-                 #distancen[bin1,nneighb[bin1]]=maxdist
-                 #distancen[bin2,nneighb[bin2]]=maxdist
                  numtrans[bin1,nneighb[bin1]]=numtrans[bin1,nneighb[bin1]]+1
                  numtrans[bin2,nneighb[bin2]]=numtrans[bin2,nneighb[bin2]]+1
                  nneighb[bin1]=nneighb[bin1]+1
@@ -402,22 +414,17 @@ def calc_neighs_kcont(numpoints,mintransitions,maxn):
              if maxdist<1.1: 
                neighb[bin1,nneighb[bin1]]=bin2
                neighb[bin2,nneighb[bin2]]=bin1
-               #distancen[bin1,nneighb[bin1]]=maxdist
-               #distancen[bin2,nneighb[bin2]]=maxdist 
                numtrans[bin1,nneighb[bin1]]=numtrans[bin1,nneighb[bin1]]+1
                numtrans[bin2,nneighb[bin2]]=numtrans[bin2,nneighb[bin2]]+1 
                nneighb[bin1]=nneighb[bin1]+1
                nneighb[bin2]=nneighb[bin2]+1
    maxn=np.amax(nneighb)
    neighb2=neighb[:,0:maxn]
-#   neighb2=neighb
    nneighb2=nneighb
    numtrans2=numtrans
-   #distancen2=distancen
    nneighb=np.zeros((numpoints),dtype=np.int32)
    neighb=np.ones((numpoints,maxn),dtype=np.int32)
    numtrans=np.zeros((numpoints,maxn),dtype=np.int32)
-   #distancen=np.zeros((numpoints,maxn))
    neighb=-neighb
    for i in range(0,numpoints):
       if nneighb2[i]>0:
@@ -426,10 +433,10 @@ def calc_neighs_kcont(numpoints,mintransitions,maxn):
         if nneighb[i]>0:
           neighb[i,0:nneighb[i]]=neighb2[i,goodtrans[0]]
           numtrans[i,0:nneighb[i]]=numtrans2[i,goodtrans[0]]
-          #distancen[i,0:nneighb[i]]=distancen2[i,goodtrans[0]]
 
    return nneighb,neighb
 
+# Routine to check and eventually correct neighbours based on valid states (or bins)
 def check_neighs(numpoints,nneighb,neighb):
    for i in range(0,numpoints):
       whichneighs=neighb[i,0:nneighb[i]]
@@ -456,13 +463,16 @@ def check_neighs(numpoints,nneighb,neighb):
  
    return nneighb,neighb
 
+# The following routine runs a Kinetic Monte Carlo (KMC) for defined number of steps (numsteps).
+# It also calculates the probability of each bin or state, which is proportional to the 
+# total time spent in each bin. Note that at every signle step the time spent in a bin is it's residence 
+# time (one over the total rate out of that bin)  
 @jit(nopython=True)
 def run_kmc(numsteps,numpoints,startstate):
 
    state=startstate 
    timekmc=0
    itt=0
-   #names=str(tmparray[state,0:ndim])
    popu=np.zeros((numpoints))
 
    for nn in range(0,numsteps):
@@ -471,13 +481,13 @@ def run_kmc(numsteps,numpoints,startstate):
       popu[state]=popu[state]+(1/freq[state])
       rand=np.random.rand()
   
-  
+      #  Alternative routine using numpy instead of an explicit loop 
       #  thisp=np.cumsum(prob[state,0:nneigh[state]])
       #  states=np.where(thisp > rand)
       #  state=neigh[state,states[0][0]]
       #  timekmc=timekmc-np.log(rand)/freq[state]
   
-      # apparently is faster to have an explicit loop
+      # For now is commented based on tests is faster or similar to have an explicit loop
   
       #else:
       for j in range(0,nneigh[state]):
@@ -489,12 +499,14 @@ def run_kmc(numsteps,numpoints,startstate):
            break
    return popu   
 
+# The following is a development routine for calculating free energies based on reverse finite differences and KMC.
+# The tests however show that while it is very accurate in one dimension, it looses accuracy by increasing dimensionality.
+# For dimensionality > 2 it is recommended to use the routine above in which free energies are calculated based on KMC populations.  
 @jit(nopython=True)
 def run_kmc_rfd(numsteps,numpoints,startstate):
 
    state=startstate
    itt=0
-   #names=str(tmparray[state,0:ndim])
    fesu=np.empty((numpoints))
    fesu[:]=np.nan
    fesu[state]=0
@@ -506,8 +518,6 @@ def run_kmc_rfd(numsteps,numpoints,startstate):
       for j in range(0,nneigh[state]):
          if np.isnan(fesu[neigh[state,j]]) and freq[neigh[state,j]]*prob[state,j]>0:
            fesu[neigh[state,j]]=fesu[state]-fesdiff[state,j]
-         #print ("DEBUG",state,j,neigh[state,j],fesu[neigh[state,j]],fesu[state],fesdiff[state,j],prob[state,j],freq[neigh[state,j]])
-      # correct free energy of current state by weighted average of free energy differences over neighbors
       weighttotu=0
       fesave=0 
       for j in range(0,nneigh[state]):
@@ -538,26 +548,26 @@ if calc_neighs:
   nneigh,neigh=check_neighs(npoints,nneigh,neigh)
   print ("Neighbours checked and eventually filtered")
 
+# Here read the neighbours if requested, instead of calculating them
 if read_neighs:
   print ("Reading the neighbours")
   neighsarray = np.loadtxt(neighs_input_file)
   ncol=np.ma.size(neighsarray,axis=1)
-  #if do_cutoff or do_kinetic_cont:
   maxneigh=ncol-2
-  #if (ncol<maxneigh+2):
-  #  print ("Error: number of columns in neighbour file is not consistent with the maximum number of neighbours")
-  #  sys.exit()
   if (len(neighsarray)!=npoints):
     print ("Error: number of bins in neighbour file is not consistent")
     print (len(neighsarray),npoints)
     sys.exit()
   nneigh=neighsarray[:,1].astype(int)
   neigh=neighsarray[:,2:maxneigh+2].astype(int)
-  #check neighs
+  #check neighs using same routine as above
   nneigh,neigh=check_neighs(npoints,nneigh,neigh)
   print ("Neighbours checked and eventually corrected")
 
-# remove bad neighbours
+# Remove neighbours that have zero total weight along the components that change from a bin to the next.
+# Note that generally the weight is the same for each component, so this will remove neighbours with zero total weight (weight of current bin plus that of its neighbour)
+# It is different only in cases in which specific (e.g. biased) components are combined when estimating forces from different trajectories through 
+# calcf_vgauss.py (using the option REMOVE_COMP). 
 if use_forces and wethreshold<0:
 
   neigh2=neigh
@@ -593,6 +603,7 @@ fesdiff[:,:]=np.nan
 logprobpath=np.empty((npoints,maxneigh))
 logprobpath[:,:]=np.nan
 
+# Print neighbours if requested
 if print_neighs:
   with open(neighs_file, 'a') as f:
       for i in range(0,npoints):
@@ -601,6 +612,7 @@ if print_neighs:
             f.write("%s " % (neigh[i,j]))
          f.write("%s \n" % (neigh[i,maxneigh-1]))
 
+# Assign transition probabilities
 for i in range(0,npoints):
     diff=tmparray[i,0:ndim]-tmparray[neigh[i,0:nneigh[i]],0:ndim]
     if totperiodic>0:
@@ -614,28 +626,15 @@ for i in range(0,npoints):
       avergrad=tmparray[neigh[i,0:nneigh[i]],ndim:2*ndim]*weights[neigh[i,0:nneigh[i]],0:ndim]+tmparray[i,ndim:2*ndim]*weights[i,0:ndim]
       weighttot=weights[neigh[i,0:nneigh[i]],0:ndim]+weights[i,0:ndim]
       avergrad=np.where(weighttot>0,avergrad/weighttot,0)
-      #pippo=np.where(diff>0,1,0)
-      #pippo2=np.where(weighttot==0,1,0)
-      #pippo3=np.where(pippo*pippo2==1,0,1)
-      #valid=np.amin(pippo3,axis=1)
       energydiff=np.sum(avergrad*diff,axis=1)
     else:       
       energydiff=tmparray[i,ndim]-tmparray[neigh[i,0:nneigh[i]],ndim]
-      #valid=np.where(np.isnan(energydiff),0,1)
     if do_mfepath or do_spath:
       logprobpath[i,0:nneigh[i]]=(np.log(invdist))+(energydiff/(2*kb*pathtemp)) 
-      #logprobpath[i,0:nneigh[i]]=np.where(valid>0,(np.log(invdist))+(energydiff/(2*kb*pathtemp)),np.nan) 
     prob[i,0:nneigh[i]]=invdist*np.exp(energydiff/(2*kb*temp))
     fesdiff[i,0:nneigh[i]]=energydiff
-    #prob[i,0:nneigh[i]]=np.where(valid>0,invdist*np.exp(energydiff/(2*kb*temp)),0.0)
 
-#print("--- %s seconds ---" % (time.time() - start_time))
-#sys.exit()
-
-# now start to reconstruct the free energy
-# initialize the free energy to zero
-# fes and probability is defined on the same points as the gradient
-
+# Assign total rates and initialize path likelihood 
 if do_mfepath or do_spath:
   freqpath=np.zeros((npoints,maxneigh)) 
   for j in range(0,maxneigh):
@@ -649,6 +648,7 @@ prob=np.where(freq>0,prob/freq,0.0)
 freq=freq[:,0]
 print ("Transition probabilities calculated")
 
+# read previous path and its likelood if requested
 if read_path:
   totpaths=1
   patharray=np.loadtxt(read_path_file)
@@ -669,15 +669,7 @@ if read_path:
   with open(per_iter_path_file, 'a') as f:
       f.write("%s %s %s \n" % (minpathdeflnlike,minpathdeflnlike,len(minpathdef)))
 
-# now run KMC
-
-#with open("per_iteration_kmc_output.dat", 'a') as f:
-#    np.savetxt(f, tmparray[state,0:ndim], newline='')
-#    f.write(b"\n")
-#    f.write("%f " % (timekmc))
-#    for i in range(0,ndim):
-#       f.write("%f " % (tmparray[state,i]))
-#    f.write("%i \n" % (state))
+# Now start to reconstruct the free energy using KMC if requested
 
 if do_fes:
 
@@ -690,6 +682,8 @@ if do_fes:
     goodstates=np.where(nneigh>0)
     goodfes=fesarray[goodstates[0],ndim]
     initstate=goodstates[0][np.argmin(goodfes)]
+
+  # Calculate free energy using reverse finite difference (not accurate in many dimensions)   
   if do_rfd:
     print ("Free energy is calculated using reverse finite difference over KMC trajectory") 
     free_energy=run_kmc_rfd(nsteps,npoints,initstate)
@@ -705,15 +699,16 @@ if do_fes:
              for j in range (0,ndim):
                 f.write("%s " % (tmparray[nn,j]))
              f.write("%s \n" % (free_energy[nn]))
+
+  # Calculate free energy from the population of KMC (see above)
   else: 
     print ("Free energy is calculated from bin populations across KMC trajectory")
     pop=run_kmc(nsteps,npoints,initstate)  
       
     maxpop=np.amax(pop)
-#for nn in range(0,npoints):
-#   if pop[nn]>0:
-#     names=str(tmparray[nn,0:ndim])
-#     print names[1:-1],-kb*temp*np.log(pop[nn]/maxpop)
+
+#   Initialize the free energy to zero and then assign it based on the populations from KMC
+#   fes and probability is defined on the same points as the gradient
 
     free_energy=np.zeros((npoints))
    
@@ -730,6 +725,7 @@ if do_fes:
                 f.write("%s " % (tmparray[nn,j]))
              f.write("%s \n" % (np.nan))
     print ("Bin maximum population is:",maxpop)
+
 # check and write accuracy
 
   error_count=0
@@ -751,9 +747,7 @@ if do_fes:
      else:
        energydiff=tmparray[nn,ndim]-tmparray[neigh[nn,0:nneigh[nn]],ndim]
      energydiff_calc=free_energy[nn]-free_energy[neigh[nn,0:nneigh[nn]]]
-     #pop_neighs=np.sum(pop[neigh[nn,0:nneigh[nn]]])
      error_diff=np.nanmean(np.absolute(energydiff_calc-energydiff))
-     #if pop[nn]>0 and pop_neighs>0:
      if np.isnan(error_diff)==False:
        error_count=error_count+1
        if error_count==1:

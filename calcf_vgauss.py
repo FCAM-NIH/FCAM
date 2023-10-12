@@ -1,3 +1,5 @@
+#!/usr/bin/env python
+
 import numpy as np
 import argparse, os, sys
 from glob import glob
@@ -7,6 +9,15 @@ from numba import jit
 import time
 start_time = time.time()
 
+# This is a python program to calculate mean forces based on the Force-Correction Analysis Method. 
+# If you use this code please cite:
+#
+# Marinelli, F. and J.D. Faraldo-Gomez, Force-Correction Analysis Method for Derivation of Multidimensional Free-Energy Landscapes from Adaptively Biased Replica Simulations. J Chem Theory Comput, 2021, 17: p. 6775-6788
+#
+# Manual and tutorial can be downloaded from https://github.com/FCAM-NIH/FCAM
+#
+
+### Argparser ###
 def parse():
     parser = argparse.ArgumentParser()
     parser.add_argument("-if", "--inputfile", \
