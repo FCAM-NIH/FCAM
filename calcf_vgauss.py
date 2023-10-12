@@ -154,8 +154,6 @@ wcutoff=18.75 # cutoff for Gaussians in weight calculation
 do_hills_bias=False
 do_umbrella_bias=False
 
-#use_force=1.0
-
 if colvarbias_column>0:
   if do_colvars==False:
     print ("ERROR: reading forces from COLVAR files is supported only for colvars ")
@@ -558,8 +556,6 @@ for line in f:
           periodic.append(0)
       ndim=ndim+1       
     if str(parts[0])=="READ_BIAS_GRAD_TRJ" or str(parts[0])=="READ_BIAS_FORCE_TRJ":
-      #if str(parts[0])=="READ_BIAS_FORCE_TRJ":
-      #  use_force=-1.0 
       if colvarbias_column>0:
         print ("ERROR: you are reading the biasing forces two times; from a file (through READ_BIAS_GRAD_TRJ)") 
         print ("and also from the COLVAR_FILE (through -colvarbias_column). Select just the pertinent option. ")
@@ -702,7 +698,6 @@ if do_internalf:
 
 if read_gfile==False:
   if do_hills_bias==False and do_umbrella_bias==False:
-    #calc_force_eff=False
     if calc_force_eff: 
       print ("NOTE: no option for reading applied forces from files or calculating them (through HILLS files") 
       print ("      or harmonic umbrella) was selected: mean forces will be calculated assuming UNBIASED SAMPLING.")
@@ -844,9 +839,6 @@ for i in range (0,ncolvars):
      if i==0:
        hillsarray=[0]
        nhills=[0]
-       #tmp_cvhills=[0]
-       #tmp_deltahills=[0]
-       #whills=[0]
      else:
        hillsarray.append(0)
        nhills.append(0)
@@ -918,13 +910,7 @@ def calc_eff_points_bin(numepoints, effparray, npointsins):
    colvarbin=np.zeros(ndim)
    numinbin=np.zeros((numepoints),dtype=np.int64)
    totperiodic=np.sum(periodic[0:ndim])
-   # assign first bin   
-   #diffc[0,:]=effparray[0,:]-(lowbound+0.5*box)
    diffc[0,:]=effparray[0,:]-lowbound
-   #if totperiodic>0:
-   #  diffc[0,:]=diffc[0,:]/box[0:ndim]
-   #  diffc[0,:]=diffc[0,:]-np.rint(diffc[0,:])*periodic[0:ndim]
-   #  diffc[0,:]=diffc[0,:]*box[0:ndim]
    bingrid=np.floor(diffc[0,:]/mywidth)
    if totperiodic>0:
      tmpdiffc=mywidth*(0.5+bingrid)-0.5*box
@@ -933,15 +919,9 @@ def calc_eff_points_bin(numepoints, effparray, npointsins):
      tmpdiffc=tmpdiffc*box[0:ndim]
      bingrid=np.rint(((tmpdiffc+0.5*box)/mywidth)-0.5)
    colvarbin=lowbound+mywidth*(0.5+bingrid)
-   #colvarbin=0.5*mywidth+mywidth*np.floor(diffc[0,:]/mywidth)+lowbound+0.5*box
-   #colvarbin=(colvarbin-(lowbound+0.5*box))/box[0:ndim]
-   #colvarbin=colvarbin-np.rint(colvarbin)*periodic[0:ndim]
-   #colvarbin=colvarbin*box[0:ndim]+(lowbound+0.5*box)     
-   ##colvarsbineff[0,:]=lowbound+0.5*box+0.5*mywidth
    colvarsbineff[0,:]=colvarbin
    numinbin[0]=npointsins[0]
    for i in range(1,numepoints):
-      #diffc[i,:]=effparray[i,:]-(lowbound+0.5*box)
       diffc[i,:]=effparray[i,:]-lowbound
       bingrid=np.floor(diffc[i,:]/mywidth)
       if totperiodic>0:
@@ -950,15 +930,7 @@ def calc_eff_points_bin(numepoints, effparray, npointsins):
         tmpdiffc=tmpdiffc-np.rint(tmpdiffc)*periodic[0:ndim]
         tmpdiffc=tmpdiffc*box[0:ndim]
         bingrid=np.rint(((tmpdiffc+0.5*box)/mywidth)-0.5)
-      #if totperiodic>0:
-      #  diffc[i,:]=diffc[i,:]/box[0:ndim]
-      #  diffc[i,:]=diffc[i,:]-np.rint(diffc[i,:])*periodic[0:ndim]
-      #  diffc[i,:]=diffc[i,:]*box[0:ndim]
-      #colvarbin=0.5*mywidth+mywidth*np.floor(diffc[i,:]/mywidth)+lowbound+0.5*box
       colvarbin=lowbound+mywidth*(0.5+bingrid)     
-      #colvarbin=(colvarbin-(lowbound+0.5*box))/box[0:ndim]
-      #colvarbin=colvarbin-np.rint(colvarbin)*periodic[0:ndim]
-      #colvarbin=colvarbin*box[0:ndim]+(lowbound+0.5*box)
       diffc[0:nbins,:]=colvarsbineff[0:nbins,:]-colvarbin[:]
       if totperiodic>0:
         diffc[0:nbins,:]=diffc[0:nbins,:]/box[0:ndim]
@@ -999,12 +971,6 @@ def fast_calc_eff_points(numepoints, effparray, npointsins):
    for i in range (1,ndim):
       myshift[i]=shift*newnpointsv[i-1]
       shift=myshift[i]
-   #totperiodic=np.sum(periodic[0:ndim])
-   #diffc[:,:]=effparray[:,:]-(lowbound+0.5*box) 
-   #if totperiodic>0:
-   #  diffc[:,:]=diffc[:,:]/box[0:ndim]
-   #  diffc[:,:]=diffc[:,:]-np.rint(diffc[:,:])*periodic[0:ndim]
-   #  diffc[:,:]=diffc[:,:]*box[0:ndim]
    diffc[:,:]=effparray[:,:]-lowbound
    bingrid=np.floor(diffc[:,:]/mywidth)
    # if periodic check that bin is not out of periodic boundaries (e.g. when value is exactly upper boundary)
@@ -1025,15 +991,10 @@ def fast_calc_eff_points(numepoints, effparray, npointsins):
    numinpoints=np.zeros((neffp),dtype=np.int64)
    for i in range (0,neffp):
       numinpoints[i]=np.sum(npointsins[effindexbin[i]])
-   #colvarbin=0.5*mywidth+mywidth*bingrid[effbinid[1][:],:]+(lowbound+0.5*box)
    colvarbin=lowbound+mywidth*(0.5+bingrid[effbinid[1][:],:])
 
    # to do: mask bins out of perdiodic boundaries (if found)
 
-   #if totperiodic>0:
-   #  colvarbin=(colvarbin-(lowbound+0.5*box))/box[0:ndim]
-   #  colvarbin=colvarbin-np.rint(colvarbin)*periodic[0:ndim]
-   #  colvarbin=colvarbin*box[0:ndim]+(lowbound+0.5*box)     
    return colvarbin[0:neffp,0:ndim], neffp, numinpoints[0:neffp]  
 
 # DO LABELS: ASSIGN BIN ALONG A COLVAR FILE
@@ -1080,18 +1041,10 @@ def calc_vhar_force(numepoints, numpoints, effparray, colvars, gradbias):
       diffc=widthfact*diffc/width[0:ndim]
       distance=0.5*np.sum(diffc[0:numpoints,:]*diffc[0:numpoints,:],axis=1)
       whichpoints=np.where(distance<wcutoff) 
-      #whichpoints=np.array(whichpoints)
-      #whichpoints=np.ndarray.flatten(whichpoints) 
       weight=np.exp(-distance[whichpoints[0][:]])
-      #weight=np.exp(np.sum(-0.5*diffc[0:numpoints,:]*diffc[0:numpoints,:],axis=1))
       if weight.size>0:
-        #if np.amax(weight)>0:  
-      #for j in range(0,ndim):
-        #grade[i,j]=-np.average(2.0*kb*temp*diffc[whichpoints[:],j]/width[j]+gradbias[whichpoints[:],j],weights=weight[:]) 
-      #grade[i,:]=-np.sum((2.0*kb*temp*diffc[0:numpoints,:]/width[:]+gradbias[0:numpoints,:])*weight[0:numpoints,np.newaxis],axis=0)
         grade[i,:]=-np.sum((internalf*widthfact*kb*temp*diffc[whichpoints[0][:],:]/width[:]+gradbias[whichpoints[0][:],:])*weight[:,np.newaxis],axis=0) 
         tweights[i]=np.sum(weight)
-        # fragment frames in two portions to calculate the error 
         weight1=np.where(np.cumsum(weight)<0.5*tweights[i],weight,0)
         weight2=np.where(np.cumsum(weight)>=0.5*tweights[i],weight,0)
         grade1[i,:]=-np.sum((internalf*widthfact*kb*temp*diffc[whichpoints[0][:],:]/width[:]+gradbias[whichpoints[0][:],:])*weight1[:,np.newaxis],axis=0) 
@@ -1211,8 +1164,6 @@ if do_hills_bias:
 
 if do_umbrella_bias:
   print ("Calculating umbrella sampling bias forces on each COLVAR point of the selected variables from the centers and force constants provided")
-  # debug
-  #sys.exit() 
 
   for k in range (0,ncolvars):
      diff=np.zeros((nactive[k]))
@@ -1558,7 +1509,6 @@ if calc_force_eff:
      grad2[0:neffpoints,j]=np.where(weighttot2[0:neffpoints]>0,grad2[0:neffpoints,j]/(weighttot2[0:neffpoints]),0)
   for i in range(0,neffpoints):
      with open(force_points_file, 'a') as f:  
-         #f.write("%s " % (i))
          for j in range (0,ndim):
             f.write("%s " % (colvarseff[i,j]))
          for j in range (0,ndim):
@@ -1566,7 +1516,6 @@ if calc_force_eff:
          f.write("%s \n " % (weighttot[i]))
   for i in range(0,neffpoints):
      with open(force_points_file1, 'a') as f:
-         #f.write("%s " % (i))
          for j in range (0,ndim):
             f.write("%s " % (colvarseff[i,j]))
          for j in range (0,ndim):
@@ -1574,7 +1523,6 @@ if calc_force_eff:
          f.write("%s \n " % (weighttot1[i]))
   for i in range(0,neffpoints):
      with open(force_points_file2, 'a') as f:
-         #f.write("%s " % (i))
          for j in range (0,ndim):
             f.write("%s " % (colvarseff[i,j]))
          for j in range (0,ndim):
@@ -1656,7 +1604,6 @@ if read_ffile:
              if ncol>2*ndim:
                for j in range(0,ndim):
                   weightr[:,j]=tryarray[:,2*ndim]
-           #weightr=tryarray[:,2*ndim]
            # REMOVE BIAS COMPONENTS IF REQUESTED
            if len(rcvcomp[n])>0: 
              for j in range(0,ndim):
@@ -1681,7 +1628,6 @@ if read_ffile:
              if ncol>2*ndim:
                for j in range(0,ndim):
                   weightr[:,j]=tryarray[:,2*ndim]   
-           #weightr=tryarray[:,2*ndim]
            # REMOVE BIAS COMPONENTS IF REQUESTED
            if len(rcvcomp[n])>0: 
              for j in range(0,ndim):
@@ -1698,7 +1644,6 @@ if read_ffile:
      grad[0:neffpoints,j]=np.where(weighttot[0:neffpoints,j]>0,grad[0:neffpoints,j]/(weighttot[0:neffpoints,j]),0)
   for i in range(0,neffpoints):
      with open(force_points_file_comb, 'a') as f:
-         #f.write("%s " % (i))
          for j in range (0,ndim):
             f.write("%s " % (colvarseff[i,j]))
          for j in range (0,ndim):
