@@ -805,17 +805,30 @@ cunique=np.unique(cfile)
 hunique=np.unique(hfile)
 vunique=np.unique(whichcv)
 
-if len(cunique)!=len(cfile) and cunique[0]!="none":
-  print ("ERROR: same COLVAR file introduced multiple times in the input")
-  sys.exit()
+try:
+    assert(len(cunique)==len(cfile))
+except AssertionError:
+    try:
+        assert(cunique[0]=="none")
+    except AssertionError:    
+        raise FCAM_Error("Same COLVAR file introduced multiple times in the input")
 
-if len(hunique)!=len(hfile) and hunique[0]!="none":
-  print ("ERROR: same HILLS file introduced multiple times in the input")
-  sys.exit()
+try:
+    assert(len(hunique)==len(hfile))
+except AssertionError:
+    try:
+        assert(hunique[0]=="none")
+    except AssertionError:
+        raise FCAM_Error("Same HILLS file introduced multiple times in the input")
 
-if len(vunique)!=len(whichcv):
-  print ("ERROR: same CV introduced multiple times in the input")
-  sys.exit()
+try:
+    assert(len(vunique)==len(whichcv))
+except AssertionError:
+    raise FCAM_Error("Same CV introduced multiple times in the input")
+
+#if len(vunique)!=len(whichcv):
+#  print ("ERROR: same CV introduced multiple times in the input")
+#  sys.exit()
 
 iactive=np.zeros((ncolvars,ndim),dtype=np.int8)
 iactive[:,:]=-1
