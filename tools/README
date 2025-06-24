@@ -1,8 +1,10 @@
 # tools directory containing:
 # 
 # graf_fes_kmc_no-numba.py: same as ../graf_fes_kmc.py but without numba (much slower for calculating the free enegry landscape using KMC) 
-
+#
 # get_integral.sh: numerical integrator to get the 1D free energy from the free energy gradient using a simple bash/awk script
+#
+# hist.py: python code to make multimensional hystograms from an ASCII trajectory file or project free energy along a subset of collective variables. For usage: python hist.py -h
 #
 # partition_neighs: folder containing awk/bash scripts for simple parallelization speed up of neigbour search (useful in high dimensionality)
 #

@@ -5,7 +5,7 @@ import argparse, os, sys
 from glob import glob
 from copy import deepcopy
 from errors import FCAM_Error
-from numba import jit
+#from numba import jit
 import time
 start_time = time.time()
 
@@ -905,7 +905,7 @@ if do_gefilter:
 
 # This routine calculates effective points based on spherical cut-off (upperbound-lowerbound/number of points in each direction).
 # Doesn't give memory issues or overflow but it's slow in high dimensionality.
-@jit(nopython=True)
+#@jit(nopython=True)
 def calc_eff_points(numpoints, inputarray, npointsins):
    diffc=np.zeros((numpoints,ndim))
    distance=np.zeros((numpoints))
@@ -935,7 +935,7 @@ def calc_eff_points(numpoints, inputarray, npointsins):
 
 # This routine calculates effective points on a regular grid. Does not give memory issues or overflow
 # but is slow in high dimensionality. 
-@jit(nopython=True)
+#@jit(nopython=True)
 def calc_eff_points_bin(numepoints, effparray, npointsins):
    colvarsbineff=np.zeros((numepoints, ndim))
    nbins=1
